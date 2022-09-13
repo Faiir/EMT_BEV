@@ -5,19 +5,14 @@ import torch
 import torch.nn as nn
 import torch.utils.benchmark as benchmark
 from custome_logger import setup_custom_logger
-import logging
 
 logger = setup_custom_logger()
 logger.debug("test")
 
-# import torchvision
+from mmcv import Config
 
-
-import warnings
-from mmcv import Config, DictAction
-from mmcv.runner import get_dist_info, init_dist
 from mmcv.runner import load_checkpoint, wrap_fp16_model
-from os import path as osp
+from mmcv.cnn import fuse_conv_bn
 from mmdet3d.models import build_model
 from mmdet3d.datasets import build_dataset
 from mmcv.parallel import MMDataParallel
@@ -27,7 +22,7 @@ from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTenso
 @torch.no_grad()
 def measure_time_host(
     model: nn.Module,
-    input_tensor: torch.Tensor,
+    sample,
     num_repeats: int = 100,
     num_warmups: int = 10,
     synchronize: bool = True,
@@ -35,7 +30,7 @@ def measure_time_host(
 ) -> float:
 
     for _ in range(num_warmups):
-        _ = model.forward(input_tensor)
+        _ = model.forward(sample)
     torch.cuda.synchronize()
 
     elapsed_time_ms = 0
@@ -43,7 +38,7 @@ def measure_time_host(
     if continuous_measure:
         start = timer()
         for _ in range(num_repeats):
-            _ = model.forward(input_tensor)
+            _ = model.forward(sample)
         if synchronize:
             torch.cuda.synchronize()
         end = timer()
@@ -52,7 +47,7 @@ def measure_time_host(
     else:
         for _ in range(num_repeats):
             start = timer()
-            _ = model.forward(input_tensor)
+            _ = model.forward(sample)
             if synchronize:
                 torch.cuda.synchronize()
             end = timer()
@@ -64,7 +59,7 @@ def measure_time_host(
 @torch.no_grad()
 def measure_time_device(
     model: nn.Module,
-    input_tensor: torch.Tensor,
+    sample,
     num_repeats: int = 100,
     num_warmups: int = 10,
     synchronize: bool = True,
@@ -72,7 +67,7 @@ def measure_time_device(
 ) -> float:
 
     for _ in range(num_warmups):
-        _ = model.forward(input_tensor)
+        _ = model.forward(sample)
     torch.cuda.synchronize()
 
     elapsed_time_ms = 0
@@ -82,7 +77,7 @@ def measure_time_device(
         end_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
         for _ in range(num_repeats):
-            _ = model.forward(input_tensor)
+            _ = model.forward(sample)
         end_event.record()
         if synchronize:
             # This has to be synchronized to compute the elapsed time.
@@ -95,7 +90,7 @@ def measure_time_device(
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
             start_event.record()
-            _ = model.forward(input_tensor)
+            _ = model.forward(sample)
             end_event.record()
             if synchronize:
                 # This has to be synchronized to compute the elapsed time.
@@ -107,15 +102,31 @@ def measure_time_device(
 
 
 @torch.no_grad()
-def run_inference(model: nn.Module, input_tensor: torch.Tensor) -> torch.Tensor:
-
-    return model.forward(input_tensor)
+def run_inference(model, sample):
+    motion_distribution_targets = {
+        # for motion prediction
+        "motion_segmentation": sample["motion_segmentation"][0],
+        "motion_instance": sample["motion_instance"][0],
+        "instance_centerness": sample["instance_centerness"][0],
+        "instance_offset": sample["instance_offset"][0],
+        "instance_flow": sample["instance_flow"][0],
+        "future_egomotion": sample["future_egomotions"][0],
+    }
+    return model(
+        return_loss=False,
+        rescale=True,
+        img_metas=sample["img_metas"],
+        img_inputs=sample["img_inputs"],
+        future_egomotions=sample["future_egomotions"],
+        motion_targets=motion_distribution_targets,
+        img_is_valid=sample["img_is_valid"][0],
+    )
 
 
 def main() -> None:
 
-    num_warmups = 100
-    num_repeats = 1000
+    num_warmups = 5
+    num_repeats = 3
     # Change to C x 1 x 3 x 1600 x 900
     # 704×256 Tiny
     # 1408×512
@@ -191,20 +202,16 @@ def main() -> None:
 
     model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
     wrap_fp16_model(model)
-    # load_checkpoint(
-    #     model,
-    #     r"/home/niklas/ETM_BEV/BEVerse/checkpoints/beverse_tiny.pth",
-    #     map_location="cpu",
-    # )
-    # model = fuse_module(model)
+    model = fuse_conv_bn(model)
     model.cuda(device)
-    model.cuda()
     model = MMDataParallel(model, device_ids=[0])
     model.eval()
     # model = nn.Conv2d(in_channels=input_shape[1], out_channels=256, kernel_size=(5, 5))
 
     # Input tensor
-    # input_tensor = torch.rand(input_shape, device=device)
+    # sample = torch.rand(input_shape, device=device)
+
+    iter_dataloader = iter(data_loader)
 
     torch.cuda.synchronize()
 
@@ -212,9 +219,10 @@ def main() -> None:
     for continuous_measure in [True]:
         for synchronize in [True]:
             try:
+                sample = next(iter_dataloader)
                 latency_ms = measure_time_host(
                     model=model,
-                    input_tensor=input_tensor,
+                    sample=sample,
                     num_repeats=num_repeats,
                     num_warmups=num_warmups,
                     synchronize=synchronize,
@@ -241,7 +249,7 @@ def main() -> None:
             try:
                 latency_ms = measure_time_device(
                     model=model,
-                    input_tensor=input_tensor,
+                    sample=sample,
                     num_repeats=num_repeats,
                     num_warmups=num_warmups,
                     synchronize=synchronize,
@@ -265,9 +273,9 @@ def main() -> None:
     print("Latency Measurement Using PyTorch Benchmark...")
     num_threads = 1
     timer = benchmark.Timer(
-        stmt="run_inference(model, input_tensor)",
+        stmt="run_inference(model, sample)",
         setup="from __main__ import run_inference",
-        globals={"model": model, "input_tensor": input_tensor},
+        globals={"model": model, "sample": sample},
         num_threads=num_threads,
         label="Latency Measurement",
         sub_label="torch.utils.benchmark.",
