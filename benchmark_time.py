@@ -3,23 +3,25 @@ import os
 from timeit import default_timer as timer
 import torch
 import torch.nn as nn
+import torch.utils.benchmark as benchmark
+from custome_logger import setup_custom_logger
+import logging
+
+logger = setup_custom_logger()
+logger.debug("test")
 
 # import torchvision
-import torch.utils.benchmark as benchmark
 
-from mmcv import Config
 
-# from mmcv.parallel import MMDataParallel
+import warnings
+from mmcv import Config, DictAction
+from mmcv.runner import get_dist_info, init_dist
 from mmcv.runner import load_checkpoint, wrap_fp16_model
-
-# from mmdet3d.models import build_detector
-# from tools.misc.fuse_conv_bn import fuse_module
-
-
+from os import path as osp
 from mmdet3d.models import build_model
-
-
-torch.backends.cudnn.benchmark = True
+from mmdet3d.datasets import build_dataset
+from mmcv.parallel import MMDataParallel
+from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
 
 
 @torch.no_grad()
@@ -117,7 +119,7 @@ def main() -> None:
     # Change to C x 1 x 3 x 1600 x 900
     # 704×256 Tiny
     # 1408×512
-    input_shape = (6, 1600, 900, 3)
+    # input_shape = (6, 1600, 900, 3)
 
     device = torch.device("cuda:0")
     cfg = Config.fromfile(
@@ -158,8 +160,35 @@ def main() -> None:
                     _module_path = _module_path + "." + m
                 print(_module_path)
                 plg_lib = importlib.import_module(_module_path)
-    # model = torchvision.models.resnet18(pretrained=False)
-    # model = build_detector(cfg.model, test_cfg=cfg.get("test_cfg"))
+
+    samples_per_gpu = 1
+    if isinstance(cfg.data.test, dict):
+        cfg.data.test.test_mode = True
+        samples_per_gpu = cfg.data.test.pop("samples_per_gpu", 1)
+        if samples_per_gpu > 1:
+            # Replace 'ImageToTensor' to 'DefaultFormatBundle'
+            cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
+    elif isinstance(cfg.data.test, list):
+        for ds_cfg in cfg.data.test:
+            ds_cfg.test_mode = True
+        samples_per_gpu = max(
+            [ds_cfg.pop("samples_per_gpu", 1) for ds_cfg in cfg.data.test]
+        )
+        if samples_per_gpu > 1:
+            for ds_cfg in cfg.data.test:
+                ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
+
+    torch.backends.cudnn.benchmark = True
+
+    dataset = build_dataset(cfg.data.test)
+    data_loader = build_dataloader(
+        dataset,
+        samples_per_gpu=samples_per_gpu,
+        workers_per_gpu=cfg.data.workers_per_gpu,
+        dist=False,
+        shuffle=False,
+    )
+
     model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
     wrap_fp16_model(model)
     # load_checkpoint(
@@ -169,11 +198,13 @@ def main() -> None:
     # )
     # model = fuse_module(model)
     model.cuda(device)
+    model.cuda()
+    model = MMDataParallel(model, device_ids=[0])
     model.eval()
     # model = nn.Conv2d(in_channels=input_shape[1], out_channels=256, kernel_size=(5, 5))
 
     # Input tensor
-    input_tensor = torch.rand(input_shape, device=device)
+    # input_tensor = torch.rand(input_shape, device=device)
 
     torch.cuda.synchronize()
 

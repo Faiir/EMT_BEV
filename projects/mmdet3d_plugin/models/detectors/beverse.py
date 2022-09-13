@@ -76,6 +76,7 @@ class BEVerse(MVXTwoStageDetector):
     ):
         # image-view feature extraction
         logger = logging.getLogger("timelogger")
+        print("Started Logger")
         imgs = img[0]
         # imgs = img
         start = timer()
