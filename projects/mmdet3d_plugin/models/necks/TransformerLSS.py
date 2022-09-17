@@ -1,5 +1,6 @@
 # Copyright (c) Junjie.huang. All rights reserved.
 
+import logging
 import torch
 import torch.nn as nn
 from mmcv.runner import BaseModule
@@ -9,28 +10,43 @@ from mmdet.models.backbones.resnet import Bottleneck, BasicBlock
 from mmcv.cnn import build_norm_layer
 from mmdet3d.models.backbones.swin import SwinTransformer
 from mmdet3d.ops.bev_pool import bev_pool
+from timeit import default_timer as timer
 
 import pdb
+
+logger = logging.getLogger("timelogger")
 
 
 @NECKS.register_module()
 class TransformerLSS(BaseModule):
-    def __init__(self, grid_conf=None, input_dim=None, init_cfg=None, numC_input=512,
-                 numC_Trans=512, downsample=16, faster=False, use_bev_pool=True, **kwargs):
+    def __init__(
+        self,
+        grid_conf=None,
+        input_dim=None,
+        init_cfg=None,
+        numC_input=512,
+        numC_Trans=512,
+        downsample=16,
+        faster=False,
+        use_bev_pool=True,
+        **kwargs
+    ):
 
         super(TransformerLSS, self).__init__(init_cfg)
         if grid_conf is None:
             grid_conf = {
-                'xbound': [-51.2, 51.2, 0.8],
-                'ybound': [-51.2, 51.2, 0.8],
-                'zbound': [-10.0, 10.0, 20.0],
-                'dbound': [4.0, 45.0, 1.0], }
+                "xbound": [-51.2, 51.2, 0.8],
+                "ybound": [-51.2, 51.2, 0.8],
+                "zbound": [-10.0, 10.0, 20.0],
+                "dbound": [4.0, 45.0, 1.0],
+            }
 
         self.grid_conf = grid_conf
-        self.dx, self.bx, self.nx = gen_dx_bx(self.grid_conf['xbound'],
-                                              self.grid_conf['ybound'],
-                                              self.grid_conf['zbound'],
-                                              )
+        self.dx, self.bx, self.nx = gen_dx_bx(
+            self.grid_conf["xbound"],
+            self.grid_conf["ybound"],
+            self.grid_conf["zbound"],
+        )
 
         self.input_dim = input_dim
         self.downsample = downsample
@@ -40,9 +56,11 @@ class TransformerLSS(BaseModule):
         self.numC_input = numC_input
         self.numC_Trans = numC_Trans
         self.depthnet = nn.Conv2d(
-            self.numC_input, self.D + self.numC_Trans, kernel_size=1, padding=0)
+            self.numC_input, self.D + self.numC_Trans, kernel_size=1, padding=0
+        )
 
         self.use_bev_pool = use_bev_pool
+        self.logger = logging.getLogger("timelogger")
 
     def get_depth_dist(self, x, eps=1e-20):
         return x.softmax(dim=1)
@@ -51,13 +69,22 @@ class TransformerLSS(BaseModule):
         # make grid in image plane
         ogfH, ogfW = self.input_dim
         fH, fW = ogfH // self.downsample, ogfW // self.downsample
-        ds = torch.arange(
-            *self.grid_conf['dbound'], dtype=torch.float).view(-1, 1, 1).expand(-1, fH, fW)
+        ds = (
+            torch.arange(*self.grid_conf["dbound"], dtype=torch.float)
+            .view(-1, 1, 1)
+            .expand(-1, fH, fW)
+        )
         D, _, _ = ds.shape
-        xs = torch.linspace(
-            0, ogfW - 1, fW, dtype=torch.float).view(1, 1, fW).expand(D, fH, fW)
-        ys = torch.linspace(
-            0, ogfH - 1, fH, dtype=torch.float).view(1, fH, 1).expand(D, fH, fW)
+        xs = (
+            torch.linspace(0, ogfW - 1, fW, dtype=torch.float)
+            .view(1, 1, fW)
+            .expand(D, fH, fW)
+        )
+        ys = (
+            torch.linspace(0, ogfH - 1, fH, dtype=torch.float)
+            .view(1, fH, 1)
+            .expand(D, fH, fW)
+        )
 
         # D x H x W x 3
         frustum = torch.stack((xs, ys, ds), -1)
@@ -83,13 +110,20 @@ class TransformerLSS(BaseModule):
         # undo post-transformation
         # B x N x D x H x W x 3
         points = self.frustum - post_trans.view(BS, N, 1, 1, 1, 3)
-        points = torch.inverse(post_rots).view(
-            BS, N, 1, 1, 1, 3, 3).matmul(points.unsqueeze(-1))
+        points = (
+            torch.inverse(post_rots)
+            .view(BS, N, 1, 1, 1, 3, 3)
+            .matmul(points.unsqueeze(-1))
+        )
 
         # cam_to_ego
-        points = torch.cat((points[:, :, :, :, :, :2] * points[:, :, :, :, :, 2:3],
-                            points[:, :, :, :, :, 2:3]
-                            ), 5)
+        points = torch.cat(
+            (
+                points[:, :, :, :, :, :2] * points[:, :, :, :, :, 2:3],
+                points[:, :, :, :, :, 2:3],
+            ),
+            5,
+        )
 
         combine = rots.matmul(torch.inverse(intrins))
         points = combine.view(BS, N, 1, 1, 1, 3, 3).matmul(points).squeeze(-1)
@@ -109,30 +143,40 @@ class TransformerLSS(BaseModule):
         dx = self.dx.type_as(geom_feats)
         nx = self.nx.type_as(geom_feats).long()
 
-        geom_feats = ((geom_feats - (bx - dx / 2.)) / dx).long()
+        geom_feats = ((geom_feats - (bx - dx / 2.0)) / dx).long()
         geom_feats = geom_feats.view(Nprime, 3)
-        batch_ix = torch.cat([torch.full([Nprime // B, 1], ix,
-                                         device=x.device, dtype=torch.long) for ix in range(B)])
+        batch_ix = torch.cat(
+            [
+                torch.full([Nprime // B, 1], ix, device=x.device, dtype=torch.long)
+                for ix in range(B)
+            ]
+        )
         geom_feats = torch.cat((geom_feats, batch_ix), 1)
         geom_feats = geom_feats.type_as(x).long()
 
         # filter out points that are outside box
-        kept = (geom_feats[:, 0] >= 0) & (geom_feats[:, 0] < nx[0]) \
-            & (geom_feats[:, 1] >= 0) & (geom_feats[:, 1] < nx[1]) \
-            & (geom_feats[:, 2] >= 0) & (geom_feats[:, 2] < nx[2])
+        kept = (
+            (geom_feats[:, 0] >= 0)
+            & (geom_feats[:, 0] < nx[0])
+            & (geom_feats[:, 1] >= 0)
+            & (geom_feats[:, 1] < nx[1])
+            & (geom_feats[:, 2] >= 0)
+            & (geom_feats[:, 2] < nx[2])
+        )
         x = x[kept]
         geom_feats = geom_feats[kept]
 
         if self.use_bev_pool:
-            final = bev_pool(x, geom_feats, B,
-                             self.nx[2], self.nx[0], self.nx[1])
+            final = bev_pool(x, geom_feats, B, self.nx[2], self.nx[0], self.nx[1])
             final = final.transpose(dim0=-2, dim1=-1)
         else:
             # get tensors from the same voxel next to each other
-            ranks = geom_feats[:, 0] * (nx[1] * nx[2] * B) \
-                + geom_feats[:, 1] * (nx[2] * B) \
-                + geom_feats[:, 2] * B \
+            ranks = (
+                geom_feats[:, 0] * (nx[1] * nx[2] * B)
+                + geom_feats[:, 1] * (nx[2] * B)
+                + geom_feats[:, 2] * B
                 + geom_feats[:, 3]
+            )
             sorts = ranks.argsort()
             x, geom_feats, ranks = x[sorts], geom_feats[sorts], ranks[sorts]
 
@@ -141,8 +185,13 @@ class TransformerLSS(BaseModule):
 
             # griddify (B x C x Z x X x Y)
             final = torch.zeros((B, C, nx[2], nx[1], nx[0]), device=x.device)
-            final[geom_feats[:, 3], :, geom_feats[:, 2],
-                  geom_feats[:, 1], geom_feats[:, 0]] = x
+            final[
+                geom_feats[:, 3],
+                :,
+                geom_feats[:, 2],
+                geom_feats[:, 1],
+                geom_feats[:, 0],
+            ] = x
 
         # collapse Z
         final = torch.cat(final.unbind(dim=2), 1)
@@ -154,40 +203,56 @@ class TransformerLSS(BaseModule):
         B, S, N, C, H, W = x.shape
         # flatten (batch, seq, num_cam)
         x = x.view(B * S * N, C, H, W)
-        x = self.depthnet(x)
 
-        depth = self.get_depth_dist(x[:, :self.D])
+        torch.cuda.synchronize()
+        start = timer()
+        x = self.depthnet(x)
+        torch.cuda.synchronize()
+        end = timer()
+        t_depthnet = (end - start) * 1000
+        self.logger.debug("LSS Depthnet " + str(t_depthnet))
+        self.logger.debug("LSS Depthnet shape " + str(x.shape))
+        depth = self.get_depth_dist(x[:, : self.D])
         # [B * S, N, D, H, W, 3]
         geom = self.get_geometry(rots, trans, intrins, post_rots, post_trans)
-        cvt_feature_list = [x[:, self.D:(self.D + self.numC_Trans)]]
-        volume_channel_index = [0, ]
+        self.logger.debug("LSS geom shape " + str(geom.shape))
+        cvt_feature_list = [x[:, self.D : (self.D + self.numC_Trans)]]
+        volume_channel_index = [
+            0,
+        ]
         for feature in cvt_feature_list:
-            volume_channel_index.append(
-                feature.shape[1]+volume_channel_index[-1])
+            volume_channel_index.append(feature.shape[1] + volume_channel_index[-1])
 
         cvt_feature = torch.cat(cvt_feature_list, dim=1)
-
+        self.logger.debug("LSS cvt_feature shape " + str(cvt_feature.shape))
         volume = depth.unsqueeze(1) * cvt_feature.unsqueeze(2)
         volume = volume.view(B * S, N, volume_channel_index[-1], self.D, H, W)
         volume = volume.permute(0, 1, 3, 4, 5, 2)
-
+        self.logger.debug("LSS volume shape " + str(volume.shape))
         if flip_x:
             geom[..., 0] = -geom[..., 0]
         if flip_y:
             geom[..., 1] = -geom[..., 1]
 
+        torch.cuda.synchronize()
+        start = timer()
         bev_feat = self.voxel_pooling(geom, volume)
         bev_feat = bev_feat.view(B, S, *bev_feat.shape[1:])
+        torch.cuda.synchronize()
+        end = timer()
+        t_BEV_pool = (end - start) * 1000
+        self.logger.debug("LSS t_BEV_pool " + str(t_BEV_pool))
+        self.logger.debug("LSS t_BEV_pool shape " + str(bev_feat.shape))
+        # bev_feat = self.voxel_pooling(geom, volume)
+        # bev_feat = bev_feat.view(B, S, *bev_feat.shape[1:])
 
         return bev_feat
 
 
 def gen_dx_bx(xbound, ybound, zbound):
     dx = torch.Tensor([row[2] for row in [xbound, ybound, zbound]])
-    bx = torch.Tensor(
-        [row[0] + row[2]/2.0 for row in [xbound, ybound, zbound]])
-    nx = torch.Tensor([(row[1] - row[0]) / row[2]
-                      for row in [xbound, ybound, zbound]])
+    bx = torch.Tensor([row[0] + row[2] / 2.0 for row in [xbound, ybound, zbound]])
+    nx = torch.Tensor([(row[1] - row[0]) / row[2] for row in [xbound, ybound, zbound]])
 
     return dx, bx, nx
 
@@ -195,9 +260,11 @@ def gen_dx_bx(xbound, ybound, zbound):
 class QuickCumsum(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, geom_feats, ranks):
+        torch.cuda.synchronize()
+        start = timer()
         x = x.cumsum(0)
         kept = torch.ones(x.shape[0], device=x.device, dtype=torch.bool)
-        kept[:-1] = (ranks[1:] != ranks[:-1])
+        kept[:-1] = ranks[1:] != ranks[:-1]
 
         x, geom_feats = x[kept], geom_feats[kept]
         x = torch.cat((x[:1], x[1:] - x[:-1]))
@@ -207,12 +274,19 @@ class QuickCumsum(torch.autograd.Function):
 
         # no gradient for geom_feats
         ctx.mark_non_differentiable(geom_feats)
+        torch.cuda.synchronize()
+        end = timer()
+        t_quick_cumsum = (end - start) * 1000
+
+        logger.debug("LSS quick_cumsum " + str(t_quick_cumsum))
+        logger.debug("LSS quick_cumsum shape " + str(x.shape))
+        logger.debug("LSS geom_feats shape " + str(geom_feats.shape))
 
         return x, geom_feats
 
     @staticmethod
     def backward(ctx, gradx, gradgeom):
-        kept, = ctx.saved_tensors
+        (kept,) = ctx.saved_tensors
         back = torch.cumsum(kept, 0)
         back[kept] -= 1
 

@@ -5,6 +5,8 @@ from mmdet3d.models.builder import NECKS
 from ...datasets.utils.geometry import cumulative_warp_features
 from ...datasets.utils import FeatureWarper
 from ..basic_modules import Bottleneck3D, TemporalBlock
+import logging
+from timeit import default_timer as timer
 
 import pdb
 
@@ -32,19 +34,21 @@ class NaiveTemporalModel(BaseModule):
         super(NaiveTemporalModel, self).__init__(init_cfg)
 
         self.grid_conf = grid_conf
-        self.spatial_extent = (grid_conf['xbound'][1], grid_conf['ybound'][1])
+        self.spatial_extent = (grid_conf["xbound"][1], grid_conf["ybound"][1])
         self.receptive_field = receptive_field
 
         inter_channels = max(in_channels // 2, out_channels)
         self.channel_conv = nn.Sequential(
-            nn.Conv2d(in_channels, inter_channels,
-                      kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(
+                in_channels, inter_channels, kernel_size=3, padding=1, bias=False
+            ),
             nn.BatchNorm2d(inter_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(inter_channels, out_channels,
-                      kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(
+                inter_channels, out_channels, kernel_size=3, padding=1, bias=False
+            ),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
         self.fp16_enabled = False
@@ -72,10 +76,11 @@ class Temporal3DConvModel(BaseModule):
         super(Temporal3DConvModel, self).__init__(init_cfg)
 
         self.grid_conf = grid_conf
-        self.spatial_extent = (grid_conf['xbound'][1], grid_conf['ybound'][1])
+        self.spatial_extent = (grid_conf["xbound"][1], grid_conf["ybound"][1])
         self.receptive_field = receptive_field
         self.input_egopose = input_egopose
         self.warper = FeatureWarper(grid_conf=grid_conf)
+        self.logger = logging.getLogger("timelogger")
 
         h, w = input_shape
         modules = []
@@ -102,8 +107,9 @@ class Temporal3DConvModel(BaseModule):
                 pool_sizes=pool_sizes,
             )
             spatial = [
-                Bottleneck3D(block_out_channels,
-                             block_out_channels, kernel_size=(1, 3, 3))
+                Bottleneck3D(
+                    block_out_channels, block_out_channels, kernel_size=(1, 3, 3)
+                )
                 for _ in range(n_spatial_layers_between_temporal_layers)
             ]
             temporal_spatial_layers = nn.Sequential(temporal, *spatial)
@@ -121,33 +127,58 @@ class Temporal3DConvModel(BaseModule):
 
     def forward(self, x, future_egomotion, aug_transform=None, img_is_valid=None):
         input_x = x.clone()
-        
+
         # when warping features from temporal frames, the bev-transform should be considered
+        torch.cuda.synchronize()
+        self.logger.debug("Temp input_x shape " + str(input_x.shape))
+        start = timer()
         x = self.warper.cumulative_warp_features(
-            x, future_egomotion[:, :x.shape[1]],
-            mode='bilinear', bev_transform=aug_transform,
+            x,
+            future_egomotion[:, : x.shape[1]],
+            mode="bilinear",
+            bev_transform=aug_transform,
         )
+        torch.cuda.synchronize()
+        end = timer()
+        t_cumulative_warp_features = (end - start) * 1000
+        self.logger.debug(
+            "Temp cumulative_warp_features " + str(t_cumulative_warp_features)
+        )
+        self.logger.debug("Temp cumulative_warp_features shape " + str(x.shape))
 
         if self.input_egopose:
             b, s, _, h, w = x.shape
-            input_future_egomotion = future_egomotion[:, :self.receptive_field].contiguous(
+            input_future_egomotion = future_egomotion[
+                :, : self.receptive_field
+            ].contiguous()
+            input_future_egomotion = input_future_egomotion.view(b, s, -1, 1, 1).expand(
+                b, s, -1, h, w
             )
-            input_future_egomotion = input_future_egomotion.view(
-                b, s, -1, 1, 1).expand(b, s, -1, h, w)
-            input_future_egomotion = torch.cat((torch.zeros_like(
-                input_future_egomotion[:, :1]), input_future_egomotion[:, :-1]), dim=1)
+            input_future_egomotion = torch.cat(
+                (
+                    torch.zeros_like(input_future_egomotion[:, :1]),
+                    input_future_egomotion[:, :-1],
+                ),
+                dim=1,
+            )
             x = torch.cat((x, input_future_egomotion), dim=2)
 
         # x with shape [b, t, c, h, w]
-        x_valid = img_is_valid[:, :self.receptive_field]
+        x_valid = img_is_valid[:, : self.receptive_field]
+        self.logger.debug("Temp receptive_field shape " + str(self.receptive_field))
+        self.logger.debug("Temp x_valid shape " + str(x_valid.shape))
+
         for i in range(x.shape[0]):
             if x_valid[i].all():
                 continue
             invalid_index = torch.where(~x_valid[i])[0][0]
             valid_feat = x[i, invalid_index + 1]
-            x[i, :(invalid_index + 1)] = valid_feat
+            x[i, : (invalid_index + 1)] = valid_feat
 
         # Reshape input tensor to (batch, C, time, H, W)
+        torch.cuda.synchronize()
+        start = timer()
+
         x = x.permute(0, 2, 1, 3, 4)
         x = self.model(x)
         x = x.permute(0, 2, 1, 3, 4).contiguous()
@@ -159,4 +190,9 @@ class Temporal3DConvModel(BaseModule):
         # return features of the present frame
         x = x[:, self.receptive_field - 1]
 
+        torch.cuda.synchronize()
+        end = timer()
+        t_TempModel = (end - start) * 1000
+        self.logger.debug("Temp t_TempModel " + str(t_TempModel))
+        self.logger.debug("Temp t_TempModel shape" + str(x.shape))
         return x
