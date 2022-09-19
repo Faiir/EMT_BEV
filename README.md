@@ -1,17 +1,6 @@
 # EMT_BEV
 
-The official implementation of the paper [BEVerse: Unified Perception and Prediction in Birds-Eye-View for Vision-Centric Autonomous Driving](https://arxiv.org/abs/2205.09743).
-
-## News
-
-- **2022.07.20:** We release the code and models of BEVerse.
-
-## Model Zoo
-
-|                          Method                          | mAP  | NDS  | IoU (Map) | IoU (Motion) | VPQ  |                                               Model                                                |
-| :------------------------------------------------------: | :--: | :--: | :-------: | :----------: | :--: | :------------------------------------------------------------------------------------------------: |
-|   [**BEVerse-Tiny**](configs/bevdet/bevdet-sttiny.py)    | 32.1 | 46.6 |   48.7    |     38.7     | 33.3 | [Google Drive](https://drive.google.com/file/d/1S2o8v6YFkeHMuJIpw-SWNDGySacH1xCV/view?usp=sharing) |
-| [**BEVerse-Small**](configs/bevdet4d/bevdet4d-sttiny.py) | 35.2 | 49.5 |   51.7    |     40.9     | 36.1 | [Google Drive](https://drive.google.com/file/d/1n0teAat6Qy_EeJdDfWcwm0x8FZ2wsAo9/view?usp=sharing) |
+For Master Thesis, Forked BEVerse Github and Description - all credit to the orgininal Authors: [BEVerse: Unified Perception and Prediction in Birds-Eye-View for Vision-Centric Autonomous Driving](https://arxiv.org/abs/2205.09743).
 
 ## Installation
 
