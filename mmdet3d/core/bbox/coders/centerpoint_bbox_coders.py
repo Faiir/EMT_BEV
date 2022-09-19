@@ -1,8 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import logging
 import torch
 
 from mmdet.core.bbox import BaseBBoxCoder
 from mmdet.core.bbox.builder import BBOX_CODERS
+from timeit import default_timer as timer
 
 
 @BBOX_CODERS.register_module()
@@ -32,6 +34,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         code_size=9,
     ):
         print("CenterPointBBoxCoder")
+        self.logger = logging.getLogger("timelogger")
         self.pc_range = pc_range
         self.out_size_factor = out_size_factor
         self.voxel_size = voxel_size
@@ -137,6 +140,9 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
             list[dict]: Decoded boxes.
         """
         batch, cat, _, _ = heat.size()
+        print("Decode")
+        torch.cuda.synchronize()
+        start = timer()
 
         scores, inds, clses, ys, xs = self._topk(heat, K=self.max_num)
 
@@ -220,5 +226,8 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
                 "Need to reorganize output as a batch, only "
                 "support post_center_range is not None for now!"
             )
-
+        torch.cuda.synchronize()
+        end = timer()
+        t_bbox_coders = (end - start) * 1000
+        self.logger.debug("t_bbox_coders " + str(t_bbox_coders))
         return predictions_dicts

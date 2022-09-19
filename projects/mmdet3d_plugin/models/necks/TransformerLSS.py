@@ -35,7 +35,7 @@ class TransformerLSS(BaseModule):
         super(TransformerLSS, self).__init__(init_cfg)
         if grid_conf is None:
             grid_conf = {
-                "xbound": [-51.2, 51.2, 0.8],
+                "xbound": [-51.2, 51.2, 0.8],  # H W
                 "ybound": [-51.2, 51.2, 0.8],
                 "zbound": [-10.0, 10.0, 20.0],
                 "dbound": [4.0, 45.0, 1.0],
@@ -214,6 +214,7 @@ class TransformerLSS(BaseModule):
         self.logger.debug("LSS Depthnet shape " + str(x.shape))
         depth = self.get_depth_dist(x[:, : self.D])
         # [B * S, N, D, H, W, 3]
+        self.logger.debug("LSS depth shape " + str(depth.shape))
         geom = self.get_geometry(rots, trans, intrins, post_rots, post_trans)
         self.logger.debug("LSS geom shape " + str(geom.shape))
         cvt_feature_list = [x[:, self.D : (self.D + self.numC_Trans)]]

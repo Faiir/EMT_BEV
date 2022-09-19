@@ -1,3 +1,5 @@
+import logging
+from timeit import default_timer as timer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -117,6 +119,7 @@ class MapHead(BaseTaskHead):
             task_dict, in_channels, inter_channels, init_cfg, norm_cfg
         )
         print("MapHead")
+        self.logger = logging.getLogger("timelogger")
         self.semantic_thresh = semantic_thresh
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -147,12 +150,21 @@ class MapHead(BaseTaskHead):
 
     @force_fp32(apply_to=("x"))
     def forward(self, x, targets=None):
-        print("Forward MapHead")
+
+        torch.cuda.synchronize()
+        start = timer()
 
         x = x[0]
-        return {
+
+        ret_dict = {
             task_key: task_head(x) for task_key, task_head in self.task_heads.items()
         }
+        torch.cuda.synchronize()
+        end = timer()
+        t_maphead = (end - start) * 1000
+        self.logger.debug("Map head" + str(t_maphead))
+
+        return ret_dict
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets):
