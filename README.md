@@ -2,6 +2,8 @@
 
 For Master Thesis, Forked BEVerse Github and Description - all credit to the orgininal Authors: [BEVerse: Unified Perception and Prediction in Birds-Eye-View for Vision-Centric Autonomous Driving](https://arxiv.org/abs/2205.09743).
 
+[BEVerse Github](https://github.com/zhangyp15/BEVerse)
+
 ## Installation
 
 Please check [installation](docs/installation.md) for installation and [data_preparation](docs/data_preparation.md) for preparing the nuScenes dataset.
