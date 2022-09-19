@@ -1,10 +1,11 @@
+import logging
 import torch
 import torch.nn as nn
 from mmcv.runner import BaseModule
 from mmdet.models.backbones.resnet import Bottleneck, BasicBlock
 from mmcv.cnn import build_norm_layer
 from mmdet3d.models import builder
-
+from timeit import default_timer as timer
 import pdb
 
 
@@ -47,7 +48,6 @@ class Up(nn.Module):
             )
 
     def forward(self, x1, x2):
-        print("forward up")
         x1 = self.up(x1)
         x1 = torch.cat([x2, x1], dim=1)
         return self.conv(x1)
@@ -69,7 +69,7 @@ class BevEncode(nn.Module):
         bev_encoder_fpn_type="lssfpn",
     ):
         super(BevEncode, self).__init__()
-
+        self.logger = logging.getLogger("timelogger")
         # build downsample modules for multiview learning
         self.multiview_learning = multiview_learning
         if self.multiview_learning:
@@ -213,7 +213,9 @@ class BevEncode(nn.Module):
         self.fp16_enabled = False
 
     def forward(self, bev_feat_list):
-        print("forward bev encoder")
+        torch.cuda.synchronize()
+        start = timer()
+
         feats = []
         x_tmp = bev_feat_list[0]
         for lid, layer in enumerate(self.layers):
@@ -239,5 +241,9 @@ class BevEncode(nn.Module):
             assert False
 
         res = self.up2(res)
-
+        torch.cuda.synchronize()
+        end = timer()
+        t_BEV_Encoder = (end - start) * 1000
+        self.logger.debug("t_BEV_Encoder " + str(t_BEV_Encoder))
+        self.logger.debug("BEV_Encoder res shape" + str(res.shape))
         return res
