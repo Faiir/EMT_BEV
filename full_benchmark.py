@@ -22,8 +22,102 @@ from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTenso
 pt_profiler = True
 
 
+def update_cfg(
+    cfg,
+    n_future=3,
+    receptive_field=3,
+    resize_lim=(0.38, 0.55),
+    final_dim=(256, 704),
+    grid_conf={
+        "xbound": [-51.2, 51.2, 0.8],
+        "ybound": [-51.2, 51.2, 0.8],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    },
+    det_grid_conf={
+        "xbound": [-51.2, 51.2, 0.8],
+        "ybound": [-51.2, 51.2, 0.8],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    },
+    map_grid_conf={
+        "xbound": [-30.0, 30.0, 0.15],
+        "ybound": [-15.0, 15.0, 0.15],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    },
+    motion_grid_conf={
+        "xbound": [-50.0, 50.0, 0.5],
+        "ybound": [-50.0, 50.0, 0.5],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    },
+    t_input_shape=(128, 128),
+    point_cloud_range=[-51.2, -51.2, -5.0, 51.2, 51.2, 3.0],
+):
+
+    cfg["model"]["temporal_model"]["input_shape"] = t_input_shape
+
+    cfg["data"]["val"]["pipeline"][0]["data_aug_conf"]["resize_lim"] = resize_lim
+    cfg["data"]["train"]["dataset"]["pipeline"][0]["data_aug_conf"][
+        "resize_lim"
+    ] = resize_lim
+    cfg["data"]["val"]["pipeline"][0]["data_aug_conf"]["final_dim"] = final_dim
+    cfg["data"]["train"]["dataset"]["pipeline"][0]["data_aug_conf"][
+        "final_dim"
+    ] = final_dim
+
+    cfg["data"]["test"]["pipeline"][0]["data_aug_conf"]["resize_lim"] = resize_lim
+    cfg["data"]["test"]["pipeline"][0]["data_aug_conf"]["final_dim"] = final_dim
+
+    cfg["model"]["pts_bbox_head"]["cfg_motion"][
+        "grid_conf"
+    ] = motion_grid_conf  # motion_grid
+    cfg["model"]["temporal_model"]["grid_conf"] = grid_conf
+    cfg["model"]["transformer"]["grid_conf"] = grid_conf
+    cfg["model"]["pts_bbox_head"]["grid_conf"] = grid_conf
+    cfg["data"]["train"]["dataset"]["grid_conf"] = motion_grid_conf
+    cfg["data"]["val"]["pipeline"][3]["grid_conf"] = motion_grid_conf
+    cfg["data"]["test"]["pipeline"][3]["grid_conf"] = motion_grid_conf
+    cfg["data"]["val"]["grid_conf"] = grid_conf
+    cfg["data"]["test"]["grid_conf"] = grid_conf
+
+    cfg["model"]["pts_bbox_head"]["det_grid_conf"] = det_grid_conf
+
+    cfg["model"]["pts_bbox_head"]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["train"]["dataset"]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["test"]["pipeline"][2]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["val"]["pipeline"][2]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["test"]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["val"]["map_grid_conf"] = map_grid_conf
+
+    cfg["model"]["pts_bbox_head"]["motion_grid_conf"] = motion_grid_conf
+
+    cfg["data"]["test"]["pipeline"][5]["point_cloud_range"] = point_cloud_range
+    cfg["data"]["train"]["pipeline"][5][
+        "point_cloud_range"
+    ] = point_cloud_range  # point_cloud_range=None
+    cfg["data"]["train"]["pipeline"][6][
+        "point_cloud_range"
+    ] = point_cloud_range  #'point_cloud_range =None
+    cfg["data"]["val"]["pipeline"][5]["point_cloud_range"] = point_cloud_range
+
+    cfg["model"]["pts_bbox_head"]["cfg_motion"]["receptive_field"] = receptive_field
+    cfg["data"]["train"]["dataset"]["receptive_field"] = receptive_field
+    cfg["model"]["temporal_model"]["receptive_field"] = receptive_field
+    cfg["data"]["test"]["receptive_field"] = receptive_field
+    cfg["data"]["val"]["receptive_field"] = receptive_field
+
+    cfg["data"]["val"]["future_frames"] = n_future
+    cfg["model"]["pts_bbox_head"]["cfg_motion"]["n_future"] = n_future
+    cfg["data"]["test"]["future_frames"] = n_future
+    cfg["data"]["train"]["dataset"]["future_frames"] = n_future
+
+    return cfg
+
+
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs/"
+    cfg_path = r"/content/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -97,9 +191,13 @@ def perform_10_steps(cfg, p):
     wrap_fp16_model(model)
     model.cuda()
     model = MMDataParallel(model, device_ids=[0])
+    iter_loader = iter(data_loader)
+    samples = []
+    for i in range(10):
+        samples.append(next(iter_loader))
 
-    for n in range(10):
-        sample = next(iter(data_loader))
+    for sample in samples:
+
         motion_distribution_targets = {
             # for motion prediction
             "motion_segmentation": sample["motion_segmentation"][0],
@@ -133,13 +231,13 @@ def main() -> None:
     # img backbones
 
     resize_lims = [
-        (0.38, 0.55),  # tiny
         (0.3, 0.45),  # fiery
+        (0.38, 0.55),  # desTINY
         (0.82, 0.99),  # small
         (1, 1),  # BEVDEt
     ]
 
-    final_dims = [(256, 704), (224, 480), (512, 1408), (900, 1600)]
+    final_dims = [(224, 480), (256, 704), (512, 1408), (900, 1600)]
 
     backbones = [
         "beverse_tiny.py",
@@ -235,12 +333,34 @@ def main() -> None:
             [1.0, 70.0, 5.0],
         ],
     }
+    det_grid_conf = {
+        "xbound": [-51.2, 51.2, 0.8],
+        "ybound": [-51.2, 51.2, 0.8],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    }
 
+    motion_grid_conf = {
+        "xbound": [-50.0, 50.0, 0.5],
+        "ybound": [-50.0, 50.0, 0.5],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    }
+
+    map_grid_conf = {
+        "xbound": [-30.0, 30.0, 0.15],
+        "ybound": [-15.0, 15.0, 0.15],
+        "zbound": [-10.0, 10.0, 20.0],
+        "dbound": [1.0, 60.0, 1.0],
+    }
     # grid_confs = (det_grid_conf, motion_grid_conf, map_grid_conf)
 
     # First test settings differently and then select interesting combinations based on findings
-    for backbone, resize_lim, final_dim in zip(backbones, resize_lims, final_dims):
+    for c, (backbone, resize_lim, final_dim) in enumerate(
+        zip(backbones, resize_lims, final_dims)
+    ):
         cfg = import_modules_load_config(cfg_file=backbone)
+        cfg = update_cfg(resize_lim=resize_lim, final_dim=final_dim)
         cfg["data_aug_conf"]["resize_lim"] = resize_lim
         cfg["data_aug_conf"]["final_dim"] = final_dims
 
@@ -252,7 +372,8 @@ def main() -> None:
                 ],
                 schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    "./logs_profiler", worker_name="worker0"
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
+                    worker_name="worker0",
                 ),
                 record_shapes=True,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
@@ -272,9 +393,11 @@ def main() -> None:
         )
     logger.debug("*******" * 12)
 
-    for future_frames, receptive_field in zip(future_frames_list, receptive_field_list):
+    for c, (future_frames, receptive_field) in enumerate(
+        zip(future_frames_list, receptive_field_list)
+    ):
         cfg = import_modules_load_config()
-
+        cfg = update_cfg(future_frames=future_frames, receptive_field=receptive_field)
         cfg["future_frames"] = future_frames
         cfg["receptive_field"] = receptive_field
 
@@ -286,7 +409,8 @@ def main() -> None:
                 ],
                 schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    "./logs_profiler", worker_name="worker0"
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/future_frames_{c}",
+                    worker_name="worker0",
                 ),
                 record_shapes=True,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
@@ -306,24 +430,29 @@ def main() -> None:
         )
     logger.debug("*******" * 12)
 
-    for i in enumerate(map_grid_confs["dbound"]):
-        det_grid_conf = det_grid_confs["xbound"][i]
-        det_grid_conf = det_grid_confs["ybound"][i]
-        det_grid_conf = det_grid_confs["zbound"]
-        det_grid_conf = det_grid_confs["dbound"][i]
+    for i, d in enumerate(map_grid_confs["dbound"]):
+        det_grid_conf["xbound"] = det_grid_confs["xbound"][i]
+        det_grid_conf["ybound"] = det_grid_confs["ybound"][i]
+        det_grid_conf["zbound"] = det_grid_confs["zbound"]
+        det_grid_conf["dbound"] = det_grid_confs["dbound"][i]
 
-        motion_grid_conf = det_grid_confs["xbound"][i]
-        motion_grid_conf = det_grid_confs["ybound"][i]
-        motion_grid_conf = det_grid_confs["zbound"]
-        motion_grid_conf = det_grid_confs["dbound"][i]
+        motion_grid_conf["xbound"] = motion_grid_confs["xbound"][i]
+        motion_grid_conf["ybound"] = motion_grid_confs["ybound"][i]
+        motion_grid_conf["zbound"] = motion_grid_confs["zbound"]
+        motion_grid_conf["dbound"] = motion_grid_confs["dbound"][i]
 
-        map_grid_conf = det_grid_confs["xbound"]
-        map_grid_conf = det_grid_confs["ybound"]
-        map_grid_conf = det_grid_confs["zbound"]
-        map_grid_conf = det_grid_confs["dbound"][i]
+        map_grid_conf["xbound"] = det_grid_confs["xbound"]
+        map_grid_conf["ybound"] = det_grid_confs["ybound"]
+        map_grid_conf["zbound"] = det_grid_confs["zbound"]
+        map_grid_conf["dbound"] = det_grid_confs["dbound"][i]
 
         cfg = import_modules_load_config()
-
+        cfg = update_cfg(
+            grid_conf=det_grid_conf,
+            det_grid_conf=det_grid_conf,
+            motion_grid_conf=motion_grid_conf,
+            map_grid_conf=map_grid_conf,
+        )
         cfg["det_grid_conf"] = det_grid_conf
         cfg["motion_grid_conf"] = motion_grid_conf
         cfg["map_grid_conf"] = map_grid_conf
@@ -341,7 +470,8 @@ def main() -> None:
                 ],
                 schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    "./logs_profiler", worker_name="worker0"
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/grid_config_{i}",
+                    worker_name="worker0",
                 ),
                 record_shapes=True,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
@@ -355,3 +485,7 @@ def main() -> None:
             "******" * 6 + " det_grid_conf " + str(det_grid_conf) + "******" * 6
         )
     logger.debug("*******" * 12)
+
+
+if __name__ == "__main__":
+    main()

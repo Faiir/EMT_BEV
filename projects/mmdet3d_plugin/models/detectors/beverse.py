@@ -11,6 +11,7 @@ import time
 from timeit import default_timer as timer
 from mmcv.runner import auto_fp16, force_fp32
 import logging
+from torch.profiler import record_function
 
 
 @DETECTORS.register_module()
@@ -74,49 +75,50 @@ class BEVerse(MVXTwoStageDetector):
         img_is_valid=None,
         count_time=True,
     ):
-        # image-view feature extraction
-
-        print("Started Logger")
         imgs = img[0]
-        # imgs = img
-        start = timer()
+        # image-view feature extraction
+        with record_function("extract_image_feat_img_backbone"):
+            # imgs = img
+            start = timer()
 
-        # print("batch?: ", imgs.shape)
-        B, S, N, C, imH, imW = imgs.shape
-        # print(f"B {B}, S {S}, N {N}, C {C}, imH {imH}, imW {imW}")
-        imgs = imgs.view(B * S * N, C, imH, imW)
-        # print("imgs ", imgs.shape)
-        self.logger.debug("original img shape: " + str(imgs.shape))
-        start = timer()
-        x = self.img_backbone(imgs)
-        torch.cuda.synchronize()
-        end = timer()
-        t_backbone = (end - start) * 1000
-        self.logger.debug(t_backbone)
+            # print("batch?: ", imgs.shape)
+            B, S, N, C, imH, imW = imgs.shape
+            # print(f"B {B}, S {S}, N {N}, C {C}, imH {imH}, imW {imW}")
+            imgs = imgs.view(B * S * N, C, imH, imW)
+            # print("imgs ", imgs.shape)
+            self.logger.debug("original img shape: " + str(imgs.shape))
+            start = timer()
+            x = self.img_backbone(imgs)
+            torch.cuda.synchronize()
+            end = timer()
+            t_backbone = (end - start) * 1000
+            self.logger.debug(t_backbone)
 
-        # print(
-        #     "after backbone: ",          len(x),
-        # )
-        # print("shape in list: ", [x_i.shape for x_i in x])
-        start = timer()
-        if self.with_img_neck:
-            x = self.img_neck(x)
-            # print("after backbone with_img_neck: ", x.shape)
-        if isinstance(x, tuple):
-            x_list = []
-            for x_tmp in x:
-                _, output_dim, ouput_H, output_W = x_tmp.shape
-                x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
-            x = x_list
-        else:
-            _, output_dim, ouput_H, output_W = x.shape
-            x = x.view(B, S, N, output_dim, ouput_H, output_W)
-        end = timer()
+            # print(
+            #     "after backbone: ",          len(x),
+            # )
+            # print("shape in list: ", [x_i.shape for x_i in x])
+
+            start = timer()
+            if self.with_img_neck:
+                x = self.img_neck(x)
+                # print("after backbone with_img_neck: ", x.shape)
+            if isinstance(x, tuple):
+                x_list = []
+                for x_tmp in x:
+                    _, output_dim, ouput_H, output_W = x_tmp.shape
+                    x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
+                x = x_list
+            else:
+                _, output_dim, ouput_H, output_W = x.shape
+                x = x.view(B, S, N, output_dim, ouput_H, output_W)
+            end = timer()
         t_feature_upscaling = (end - start) * 1000
         self.logger.debug(t_feature_upscaling)
         self.logger.debug("after transformation: " + str(x.shape))
 
         # lifting with LSS
+
         start = timer()
         x = self.transformer([x] + img[1:])
 
@@ -127,6 +129,7 @@ class BEVerse(MVXTwoStageDetector):
         self.logger.debug(t_LSS)
         self.logger.debug("after LLS : " + str(x.shape))
         # temporal processing
+
         start = timer()
         x = self.temporal_model(
             x,
@@ -271,8 +274,6 @@ class BEVerse(MVXTwoStageDetector):
 
         future_egomotions = torch.zeros((batch_size, 7, 6)).type_as(img_inputs)
         img_is_valid = torch.ones((batch_size, 7)).type_as(img_inputs) > 0
-        print("Future Egomotions: ", future_egomotions.shape)
-        print("img_is_valid: ", img_is_valid.shape)
 
         if single_frame:
             # [B, T, N, C, H, W]
@@ -280,8 +281,7 @@ class BEVerse(MVXTwoStageDetector):
             img_is_valid = img_is_valid[:, :1]
             for index in range(len(dummy_inputs)):
                 dummy_inputs[index] = dummy_inputs[index][:, -1:]
-        print("Future Egomotions: ", future_egomotions.shape)
-        print("img_is_valid: ", img_is_valid.shape)
+
         # lidar2ego transformation
         dummy_lidar2ego_rots = (
             torch.tensor(
@@ -306,18 +306,17 @@ class BEVerse(MVXTwoStageDetector):
                 lidar2ego_trans=dummy_lidar2ego_trans,
             )
         ]
-        print("image meta:", img_metas)
+
         img_feats = self.extract_img_feat(
             img=dummy_inputs,
             img_metas=img_metas,
             future_egomotion=future_egomotions,
             img_is_valid=img_is_valid,
         )
-        print(img_feats.shape)
+
         predictions = self.simple_test_pts(
             img_feats, img_metas, rescale=True, motion_targets=None
         )
-        print(predictions.shape)
 
         return predictions
 
@@ -378,7 +377,6 @@ class BEVerse(MVXTwoStageDetector):
         torch.cuda.synchronize()
         # t0 = time.time()
         start = timer()
-        print("Simple test")
 
         img_feats, time_stats = self.extract_img_feat(
             img=img,
@@ -421,7 +419,7 @@ class BEVerse(MVXTwoStageDetector):
     def simple_test_pts(self, x, img_metas, rescale=False, motion_targets=None):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x, targets=motion_targets)
-        print("simple_test_pts")
+
         predictions = self.pts_bbox_head.inference(
             outs,
             img_metas,
@@ -430,7 +428,7 @@ class BEVerse(MVXTwoStageDetector):
 
         # convert bbox predictions
         if "bbox_list" in predictions:
-            print("bbox_list")
+
             bbox_list = predictions.pop("bbox_list")
             bbox_results = [
                 bbox3d2result(bboxes, scores, labels)

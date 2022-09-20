@@ -7,6 +7,7 @@ from mmcv.cnn import build_norm_layer
 from mmdet3d.models import builder
 from timeit import default_timer as timer
 import pdb
+from torch.profiler import record_function
 
 
 class Up(nn.Module):
@@ -213,37 +214,38 @@ class BevEncode(nn.Module):
         self.fp16_enabled = False
 
     def forward(self, bev_feat_list):
-        torch.cuda.synchronize()
-        start = timer()
+        with record_function("BEV_ENCODER"):
+            torch.cuda.synchronize()
+            start = timer()
 
-        feats = []
-        x_tmp = bev_feat_list[0]
-        for lid, layer in enumerate(self.layers):
-            x_tmp = layer(x_tmp)
-            # x_tmp = checkpoint.checkpoint(layer,x_tmp)
-            if lid in self.backbone_output_ids:
-                feats.append(x_tmp)
-            if lid < (len(self.layers) - 1) and self.multiview_learning:
-                if self.feature_fuse_type == "SUM":
-                    bev_feat_from_img_view = bev_feat_list[lid + 1]
-                    bev_feat_from_img_view = self.downsample_conv_list[lid](
-                        bev_feat_from_img_view
-                    )
-                    x_tmp = x_tmp + bev_feat_from_img_view
-                else:
-                    assert False
+            feats = []
+            x_tmp = bev_feat_list[0]
+            for lid, layer in enumerate(self.layers):
+                x_tmp = layer(x_tmp)
+                # x_tmp = checkpoint.checkpoint(layer,x_tmp)
+                if lid in self.backbone_output_ids:
+                    feats.append(x_tmp)
+                if lid < (len(self.layers) - 1) and self.multiview_learning:
+                    if self.feature_fuse_type == "SUM":
+                        bev_feat_from_img_view = bev_feat_list[lid + 1]
+                        bev_feat_from_img_view = self.downsample_conv_list[lid](
+                            bev_feat_from_img_view
+                        )
+                        x_tmp = x_tmp + bev_feat_from_img_view
+                    else:
+                        assert False
 
-        if self.bev_encoder_fpn_type == "lssfpn":
-            res = self.up1(feats[-1], feats[-3])
-        elif self.bev_encoder_fpn_type == "fpnv1":
-            res = self.up1(feats)
-        else:
-            assert False
+            if self.bev_encoder_fpn_type == "lssfpn":
+                res = self.up1(feats[-1], feats[-3])
+            elif self.bev_encoder_fpn_type == "fpnv1":
+                res = self.up1(feats)
+            else:
+                assert False
 
-        res = self.up2(res)
-        torch.cuda.synchronize()
-        end = timer()
-        t_BEV_Encoder = (end - start) * 1000
-        self.logger.debug("t_BEV_Encoder " + str(t_BEV_Encoder))
-        self.logger.debug("BEV_Encoder res shape" + str(res.shape))
+            res = self.up2(res)
+            torch.cuda.synchronize()
+            end = timer()
+            t_BEV_Encoder = (end - start) * 1000
+            self.logger.debug("t_BEV_Encoder " + str(t_BEV_Encoder))
+            self.logger.debug("BEV_Encoder res shape" + str(res.shape))
         return res

@@ -19,6 +19,7 @@ from ..motion_modules import ResFuturePrediction, ResFuturePredictionV2
 from ._base_motion_head import BaseMotionHead
 from timeit import default_timer as timer
 import pdb
+from torch.profiler import record_function
 
 
 @HEADS.register_module()
@@ -74,31 +75,34 @@ class IterativeFlow(BaseMotionHead):
 
         res = {}
         if self.n_future > 0:
-            present_state = bevfeats.unsqueeze(dim=1).contiguous()
-            self.logger.debug("Temp present_state shape " + str(present_state.shape))
+            with record_function("iterative_flow_part1"):
+                present_state = bevfeats.unsqueeze(dim=1).contiguous()
+                self.logger.debug(
+                    "Temp present_state shape " + str(present_state.shape)
+                )
 
-            # sampling probabilistic distribution
-            torch.cuda.synchronize()
-            start = timer()
-            sample, output_distribution = self.distribution_forward(
-                present_state, future_distribution_inputs, noise
-            )
-            torch.cuda.synchronize()
-            end = timer()
-            t_distribution_forward = (end - start) * 1000
-            self.logger.debug(
-                "Temp output_distribution shape "
-                + str(list(output_distribution.keys()))
-            )
-            self.logger.debug("Temp sample shape " + str(sample.shape))
-            self.logger.debug(
-                "Temp distribution_forward " + str(t_distribution_forward)
-            )
+                # sampling probabilistic distribution
+                torch.cuda.synchronize()
+                start = timer()
+                sample, output_distribution = self.distribution_forward(
+                    present_state, future_distribution_inputs, noise
+                )
+                torch.cuda.synchronize()
+                end = timer()
+                t_distribution_forward = (end - start) * 1000
+                self.logger.debug(
+                    "Temp output_distribution shape "
+                    + str(list(output_distribution.keys()))
+                )
+                self.logger.debug("Temp sample shape " + str(sample.shape))
+                self.logger.debug(
+                    "Temp distribution_forward " + str(t_distribution_forward)
+                )
 
-            b, _, _, h, w = present_state.shape
-            hidden_state = present_state[:, 0]
+                b, _, _, h, w = present_state.shape
+                hidden_state = present_state[:, 0]
 
-            self.logger.debug("Temp hidden_state shape " + str(hidden_state.shape))
+                self.logger.debug("Temp hidden_state shape " + str(hidden_state.shape))
 
             future_states = self.future_prediction(sample, hidden_state)
             self.logger.debug("Temp future_states shape " + str(future_states.shape))
@@ -112,7 +116,6 @@ class IterativeFlow(BaseMotionHead):
                 res.update(output_distribution)
 
             for task_key, task_head in self.task_heads.items():
-                print(task_key)
                 res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
         else:
             b, _, h, w = bevfeats.shape

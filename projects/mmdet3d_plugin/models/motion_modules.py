@@ -6,6 +6,7 @@ from .basic_modules import Bottleneck, SpatialGRU, ConvBlock, GRUCell
 from timeit import default_timer as timer
 import pdb
 import copy
+from torch.profiler import record_function
 
 
 class DistributionModule(nn.Module):
@@ -193,7 +194,7 @@ class ResFuturePrediction(torch.nn.Module):
         self.flow_warp = flow_warp
         self.prob_each_future = prob_each_future
         self.logger = logging.getLogger("timelogger")
-        print("ResFuturePrediction")
+
         # 每个时刻，都以 sample_distribution 和 当前帧的 bev features 作为输入
         # 1. offset prediction: 预测 feature flow ==> warp features
         # 2. gru_cell: reset & update
@@ -231,43 +232,44 @@ class ResFuturePrediction(torch.nn.Module):
 
     def forward(self, sample_distribution, hidden_state):
         # x has shape (b, c_latent_dim, h, w), hidden_state (b, c, h, w)
-        res = []
-        current_state = hidden_state
-        self.logger.debug(
-            f"Current_state input Future prediction: {str(current_state.shape)}"
-        )
-        for i in range(self.n_future):
-
-            if self.flow_warp:
-                combine = torch.cat((sample_distribution, current_state), dim=1)
-                flow = self.offset_pred(self.offset_conv(combine))
-                warp_state = warp_with_flow(current_state, flow=flow)
-                warp_state = torch.cat((warp_state, sample_distribution), dim=1)
-                self.logger.debug(
-                    f"warp_state input Future prediction: {str(warp_state.shape)}"
-                )
-            else:
-                warp_state = torch.cat((sample_distribution, current_state), dim=1)
-                self.logger.debug(
-                    f"warp_state input (no flowarp) Future prediction: {str(warp_state.shape)}"
-                )
-
-            for gru_cell in self.gru_cells:
-                warp_state = gru_cell(warp_state, state=current_state)
-            self.logger.debug(f"Grucell Future prediction: {str(warp_state.shape)}")
-            warp_state = self.spatial_conv(warp_state)
+        with record_function("Future Prediction"):
+            res = []
+            current_state = hidden_state
             self.logger.debug(
-                f"spatial_conv Future prediction: {str(warp_state.shape)}"
+                f"Current_state input Future prediction: {str(current_state.shape)}"
             )
-            res.append(warp_state)
+            for i in range(self.n_future):
 
-            # updating current states
-            if self.detach_state:
-                current_state = warp_state.detach()
-            else:
-                current_state = warp_state.clone()
+                if self.flow_warp:
+                    combine = torch.cat((sample_distribution, current_state), dim=1)
+                    flow = self.offset_pred(self.offset_conv(combine))
+                    warp_state = warp_with_flow(current_state, flow=flow)
+                    warp_state = torch.cat((warp_state, sample_distribution), dim=1)
+                    self.logger.debug(
+                        f"warp_state input Future prediction: {str(warp_state.shape)}"
+                    )
+                else:
+                    warp_state = torch.cat((sample_distribution, current_state), dim=1)
+                    self.logger.debug(
+                        f"warp_state input (no flowarp) Future prediction: {str(warp_state.shape)}"
+                    )
 
-        return torch.stack(res, dim=1)
+                for gru_cell in self.gru_cells:
+                    warp_state = gru_cell(warp_state, state=current_state)
+                self.logger.debug(f"Grucell Future prediction: {str(warp_state.shape)}")
+                warp_state = self.spatial_conv(warp_state)
+                self.logger.debug(
+                    f"spatial_conv Future prediction: {str(warp_state.shape)}"
+                )
+                res.append(warp_state)
+
+                # updating current states
+                if self.detach_state:
+                    current_state = warp_state.detach()
+                else:
+                    current_state = warp_state.clone()
+
+            return torch.stack(res, dim=1)
 
 
 class ResFuturePredictionV2(torch.nn.Module):

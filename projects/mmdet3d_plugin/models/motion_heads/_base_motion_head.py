@@ -23,7 +23,7 @@ from ..motion_modules import (
     DistributionModule,
 )
 from mmcv.runner import auto_fp16, force_fp32
-
+from torch.profiler import record_function
 import pdb
 
 
@@ -206,12 +206,14 @@ class BaseMotionHead(BaseTaskHead):
 
         res = {}
         if self.n_future > 0:
-            present_state = bevfeats.unsqueeze(dim=1).contiguous()
+            with record_function("Motion Prediction distribution forward"):
 
-            # sampling probabilistic distribution
-            sample, output_distribution = self.distribution_forward(
-                present_state, future_distribution_inputs, noise
-            )
+                present_state = bevfeats.unsqueeze(dim=1).contiguous()
+
+                # sampling probabilistic distribution
+                sample, output_distribution = self.distribution_forward(
+                    present_state, future_distribution_inputs, noise
+                )
 
             b, _, _, h, w = present_state.shape
             hidden_state = present_state[:, 0]

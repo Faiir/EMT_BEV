@@ -1,8 +1,5 @@
-torch==1.10.1+cu113
-torchaudio==0.10.1+rocm4.1
 torchmetrics==0.9.3
 torchsummary==1.5.1
-torchvision==0.11.2+cu113
 absl-py==1.2.0
 accelerate==0.12.0
 addict==2.4.0
@@ -41,7 +38,7 @@ importlib-resources==5.9.0
 iniconfig==1.1.1
 iopath==0.1.10
 ipykernel==6.15.2
-ipython==8.5.0
+ipython
 ipython-genutils==0.2.0
 ipywidgets==8.0.2
 jedi==0.18.1
@@ -67,14 +64,13 @@ mistune==2.0.4
 mmcls==0.23.2
 mmcv-full==1.3.14
 mmdet==2.14.0
--e git+https://github.com/zhangyp15/BEVerse@91acad5459d989ef96d4a6a89bc533e41ec77859#egg=mmdet3d
 mmsegmentation==0.14.1
 mypy-extensions==0.4.3
 nbclient==0.6.8
 nbconvert==7.0.0
 nbformat==5.4.0
 nest-asyncio==1.5.5
-networkx==2.8.6
+networkx==2.2
 notebook==6.4.12
 numba==0.48.0
 numpy==1.19.0
@@ -124,8 +120,8 @@ QtPy==2.2.0
 requests==2.28.1
 requests-oauthlib==1.3.1
 rsa==4.9
-scikit-image==0.19.3
-scikit-learn==1.1.2
+scikit-image==0.18.3
+scikit-learn
 scipy==1.9.1
 Send2Trash==1.8.0
 Shapely==1.8.4
@@ -141,13 +137,13 @@ termcolor==1.1.0
 terminado==0.15.0
 terminaltables==3.1.10
 threadpoolctl==3.1.0
-tifffile==2022.8.12
+tifffile
 tinycss2==1.1.1
 tomli==2.0.1
 tornado==6.2
 tqdm==4.64.1
 traitlets==5.3.0
-trimesh==3.14.1
+trimesh==2.35.39
 typing-extensions==4.3.0
 urllib3==1.26.12
 wcwidth==0.2.5
@@ -157,3 +153,4 @@ widgetsnbextension==4.0.3
 yacs==0.1.8
 yapf==0.32.0
 zipp==3.8.1
+torch_tb_profiler

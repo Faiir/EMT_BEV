@@ -1,7 +1,7 @@
 formatters:
   module_func:
-    datefmt: '%m-%d %H:%M:%S'
-    format: '%(asctime)s - %(module)s - %(funcName)s - %(message)s'
+    datefmt: "%m-%d %H:%M:%S"
+    format: "%(asctime)s - %(module)s - %(funcName)s - %(message)s"
 handlers:
   file:
     class: logging.handlers.RotatingFileHandler
@@ -13,7 +13,7 @@ handlers:
 loggers:
   timelogger:
     handlers:
-    - file
+      - file
     level: DEBUG
     propagate: false
 version: 1
