@@ -10,6 +10,7 @@ import pdb
 from .loss_utils import SegmentationLoss, BinarySegmentationLoss
 from mmcv.runner import auto_fp16, force_fp32
 from mmdet3d.models.utils import clip_sigmoid
+from torch.profiler import record_function
 
 
 def calculate_birds_eye_view_parameters(x_bounds, y_bounds, z_bounds):
@@ -150,19 +151,20 @@ class MapHead(BaseTaskHead):
 
     @force_fp32(apply_to=("x"))
     def forward(self, x, targets=None):
+        with record_function("semantic_segmentation"):
+            torch.cuda.synchronize()
+            start = timer()
 
-        torch.cuda.synchronize()
-        start = timer()
+            x = x[0]
 
-        x = x[0]
-
-        ret_dict = {
-            task_key: task_head(x) for task_key, task_head in self.task_heads.items()
-        }
-        torch.cuda.synchronize()
-        end = timer()
-        t_maphead = (end - start) * 1000
-        self.logger.debug("Map head" + str(t_maphead))
+            ret_dict = {
+                task_key: task_head(x)
+                for task_key, task_head in self.task_heads.items()
+            }
+            torch.cuda.synchronize()
+            end = timer()
+            t_maphead = (end - start) * 1000
+            self.logger.debug("Map head" + str(t_maphead))
 
         return ret_dict
 

@@ -14,6 +14,7 @@ from mmdet.core import build_bbox_coder, multi_apply
 
 from timeit import default_timer as timer
 import logging
+from torch.profiler import record_function
 
 
 @HEADS.register_module()
@@ -139,8 +140,8 @@ class CenterHeadv1(BaseModule):
         Returns:
             tuple(list[dict]): Output results for tasks.
         """
-
-        return multi_apply(self.forward_single, feats)
+        with record_function("3D Object Detection"):
+            return multi_apply(self.forward_single, feats)
 
     def _gather_feat(self, feat, ind, mask=None):
         """Gather feature map.
