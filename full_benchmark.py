@@ -113,6 +113,12 @@ def update_cfg(
     cfg["data"]["test"]["future_frames"] = n_future
     cfg["data"]["train"]["dataset"]["future_frames"] = n_future
 
+    cfg["data"]["train"]["dataset"]["pipeline"][4]["map_grid_conf"] = map_grid_conf
+    cfg["data"]["train"]["dataset"]["pipeline"][5]["grid_conf"] = motion_grid_conf
+    cfg["data"]["train"]["dataset"]["pipeline"][7][
+        "point_cloud_range"
+    ] = point_cloud_range
+
     return cfg
 
 
@@ -360,7 +366,7 @@ def main() -> None:
         zip(backbones, resize_lims, final_dims)
     ):
         cfg = import_modules_load_config(cfg_file=backbone)
-        cfg = update_cfg(resize_lim=resize_lim, final_dim=final_dim)
+        cfg = update_cfg(cfg, resize_lim=resize_lim, final_dim=final_dim)
         cfg["data_aug_conf"]["resize_lim"] = resize_lim
         cfg["data_aug_conf"]["final_dim"] = final_dims
 
@@ -397,7 +403,9 @@ def main() -> None:
         zip(future_frames_list, receptive_field_list)
     ):
         cfg = import_modules_load_config()
-        cfg = update_cfg(future_frames=future_frames, receptive_field=receptive_field)
+        cfg = update_cfg(
+            cfg, future_frames=future_frames, receptive_field=receptive_field
+        )
         cfg["future_frames"] = future_frames
         cfg["receptive_field"] = receptive_field
 
@@ -441,26 +449,29 @@ def main() -> None:
         motion_grid_conf["zbound"] = motion_grid_confs["zbound"]
         motion_grid_conf["dbound"] = motion_grid_confs["dbound"][i]
 
-        map_grid_conf["xbound"] = det_grid_confs["xbound"]
-        map_grid_conf["ybound"] = det_grid_confs["ybound"]
-        map_grid_conf["zbound"] = det_grid_confs["zbound"]
-        map_grid_conf["dbound"] = det_grid_confs["dbound"][i]
+        map_grid_conf["xbound"] = map_grid_confs["xbound"]
+        map_grid_conf["ybound"] = map_grid_confs["ybound"]
+        map_grid_conf["zbound"] = map_grid_confs["zbound"]
+        map_grid_conf["dbound"] = map_grid_confs["dbound"][i]
 
-        cfg = import_modules_load_config()
-        cfg = update_cfg(
-            grid_conf=det_grid_conf,
-            det_grid_conf=det_grid_conf,
-            motion_grid_conf=motion_grid_conf,
-            map_grid_conf=map_grid_conf,
-        )
         cfg["det_grid_conf"] = det_grid_conf
         cfg["motion_grid_conf"] = motion_grid_conf
         cfg["map_grid_conf"] = map_grid_conf
         cfg["grid_conf"] = det_grid_conf
         if i <= 4:
-            cfg["point_cloud_range"] = point_cloud_range_base
+            pcr = point_cloud_range_base
         else:
-            cfg["point_cloud_range"] = point_cloud_range_extended_fustrum
+            pcr = point_cloud_range_extended_fustrum
+
+        cfg = import_modules_load_config()
+        cfg = update_cfg(
+            cfg,
+            grid_conf=det_grid_conf,
+            det_grid_conf=det_grid_conf,
+            motion_grid_conf=motion_grid_conf,
+            map_grid_conf=map_grid_conf,
+            point_cloud_range=pcr,
+        )
 
         if pt_profiler:
             with torch.profiler.profile(
