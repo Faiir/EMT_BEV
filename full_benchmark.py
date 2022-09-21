@@ -75,6 +75,7 @@ def update_cfg(
     ] = motion_grid_conf  # motion_grid
     cfg["model"]["temporal_model"]["grid_conf"] = grid_conf
     cfg["model"]["transformer"]["grid_conf"] = grid_conf
+    cfg["model"]["transformer"]["input_dim"] = final_dim
     cfg["model"]["pts_bbox_head"]["grid_conf"] = grid_conf
     cfg["data"]["train"]["dataset"]["grid_conf"] = motion_grid_conf
     cfg["data"]["val"]["pipeline"][3]["grid_conf"] = motion_grid_conf
@@ -376,14 +377,14 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
+                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
                     f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
                     worker_name="worker0",
                 ),
-                record_shapes=True,
+                record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=True,
+                with_stack=False,
             ) as p:
                 perform_10_steps(cfg, p)
         else:
@@ -415,14 +416,14 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
+                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
                     f"/content/drive/MyDrive/logs_thesis/logs_profiler/future_frames_{c}",
                     worker_name="worker0",
                 ),
-                record_shapes=True,
+                record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=True,
+                with_stack=False,
             ) as p:
                 perform_10_steps(cfg, p)
         else:
@@ -479,14 +480,14 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=0, warmup=0, active=2),
+                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
                     f"/content/drive/MyDrive/logs_thesis/logs_profiler/grid_config_{i}",
                     worker_name="worker0",
                 ),
-                record_shapes=True,
+                record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=True,
+                with_stack=False,
             ) as p:
                 perform_10_steps(cfg, p)
         else:

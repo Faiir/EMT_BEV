@@ -77,42 +77,42 @@ class BEVerse(MVXTwoStageDetector):
     ):
         imgs = img[0]
         # image-view feature extraction
-        with record_function("extract_image_feat_img_backbone"):
-            # imgs = img
-            start = timer()
+        # with record_function("extract_image_feat_img_backbone"):
+        # imgs = img
+        start = timer()
 
-            # print("batch?: ", imgs.shape)
-            B, S, N, C, imH, imW = imgs.shape
-            # print(f"B {B}, S {S}, N {N}, C {C}, imH {imH}, imW {imW}")
-            imgs = imgs.view(B * S * N, C, imH, imW)
-            # print("imgs ", imgs.shape)
-            self.logger.debug("original img shape: " + str(imgs.shape))
-            start = timer()
-            x = self.img_backbone(imgs)
-            torch.cuda.synchronize()
-            end = timer()
-            t_backbone = (end - start) * 1000
-            self.logger.debug(t_backbone)
+        # print("batch?: ", imgs.shape)
+        B, S, N, C, imH, imW = imgs.shape
+        # print(f"B {B}, S {S}, N {N}, C {C}, imH {imH}, imW {imW}")
+        imgs = imgs.view(B * S * N, C, imH, imW)
+        # print("imgs ", imgs.shape)
+        self.logger.debug("original img shape: " + str(imgs.shape))
+        start = timer()
+        x = self.img_backbone(imgs)
+        torch.cuda.synchronize()
+        end = timer()
+        t_backbone = (end - start) * 1000
+        self.logger.debug(t_backbone)
 
-            # print(
-            #     "after backbone: ",          len(x),
-            # )
-            # print("shape in list: ", [x_i.shape for x_i in x])
+        # print(
+        #     "after backbone: ",          len(x),
+        # )
+        # print("shape in list: ", [x_i.shape for x_i in x])
 
-            start = timer()
-            if self.with_img_neck:
-                x = self.img_neck(x)
-                # print("after backbone with_img_neck: ", x.shape)
-            if isinstance(x, tuple):
-                x_list = []
-                for x_tmp in x:
-                    _, output_dim, ouput_H, output_W = x_tmp.shape
-                    x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
-                x = x_list
-            else:
-                _, output_dim, ouput_H, output_W = x.shape
-                x = x.view(B, S, N, output_dim, ouput_H, output_W)
-            end = timer()
+        start = timer()
+        if self.with_img_neck:
+            x = self.img_neck(x)
+            # print("after backbone with_img_neck: ", x.shape)
+        if isinstance(x, tuple):
+            x_list = []
+            for x_tmp in x:
+                _, output_dim, ouput_H, output_W = x_tmp.shape
+                x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
+            x = x_list
+        else:
+            _, output_dim, ouput_H, output_W = x.shape
+            x = x.view(B, S, N, output_dim, ouput_H, output_W)
+        end = timer()
         t_feature_upscaling = (end - start) * 1000
         self.logger.debug(t_feature_upscaling)
         self.logger.debug("after transformation: " + str(x.shape))

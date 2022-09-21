@@ -119,7 +119,7 @@ class CenterHeadv1(BaseModule):
         Returns:
             list[dict]: Output results for tasks.
         """
-        print("foward_single")
+
         ret_dicts = []
 
         x = self.shared_conv(x)

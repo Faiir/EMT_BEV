@@ -140,7 +140,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
             list[dict]: Decoded boxes.
         """
         batch, cat, _, _ = heat.size()
-        print("Decode")
+
         torch.cuda.synchronize()
         start = timer()
 
