@@ -1409,5 +1409,5 @@ Okay i can fill you in on my plans :D,
         09-21 14:15:16 - temporal - forward - Temp t_TempModel shapetorch.Size([1, 64, 1024, 1024])
 
 
-    Heraus finden warum input_size nicht weitergegeben wird aber grid:size
+    Heraus finden warum input_size nicht weitergegeben wird aber grid:size--
       Config checken

@@ -56,16 +56,16 @@ class FPN_LSS(BaseModule):
             self.return_ds = return_ds
 
     def forward(self, inputs):
-        # with record_function("FPN_LSS_NECK"):
-        if self.use_neck:
-            if self.inverse:
-                x2, x1 = inputs
+        with record_function("FPN_LSS_NECK"):
+            if self.use_neck:
+                if self.inverse:
+                    x2, x1 = inputs
+                else:
+                    x1, x2 = inputs
+                if len(self.return_ds) == 1:
+                    assert self.return_ds[0] == 16
+                    return self.up(x1, x2)
+                else:
+                    return x1, self.up(x1, x2)
             else:
-                x1, x2 = inputs
-            if len(self.return_ds) == 1:
-                assert self.return_ds[0] == 16
-                return self.up(x1, x2)
-            else:
-                return x1, self.up(x1, x2)
-        else:
-            return inputs[0]
+                return inputs[0]

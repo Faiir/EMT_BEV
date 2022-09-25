@@ -151,15 +151,16 @@ class MapHead(BaseTaskHead):
 
     @force_fp32(apply_to=("x"))
     def forward(self, x, targets=None):
-        # with record_function("semantic_segmentation"):
-        torch.cuda.synchronize()
-        start = timer()
+        with record_function("semantic_segmentation"):
+            torch.cuda.synchronize()
+            start = timer()
 
-        x = x[0]
+            x = x[0]
 
-        ret_dict = {
-            task_key: task_head(x) for task_key, task_head in self.task_heads.items()
-        }
+            ret_dict = {
+                task_key: task_head(x)
+                for task_key, task_head in self.task_heads.items()
+            }
         torch.cuda.synchronize()
         end = timer()
         t_maphead = (end - start) * 1000

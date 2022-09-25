@@ -206,27 +206,27 @@ class BaseMotionHead(BaseTaskHead):
 
         res = {}
         if self.n_future > 0:
-            # with record_function("Motion Prediction distribution forward"):
+            with record_function("Motion Prediction distribution forward"):
 
-            present_state = bevfeats.unsqueeze(dim=1).contiguous()
+                present_state = bevfeats.unsqueeze(dim=1).contiguous()
 
-            # sampling probabilistic distribution
-            sample, output_distribution = self.distribution_forward(
-                present_state, future_distribution_inputs, noise
-            )
+                # sampling probabilistic distribution
+                sample, output_distribution = self.distribution_forward(
+                    present_state, future_distribution_inputs, noise
+                )
 
-            b, _, _, h, w = present_state.shape
-            hidden_state = present_state[:, 0]
+                b, _, _, h, w = present_state.shape
+                hidden_state = present_state[:, 0]
 
-            future_states = self.future_prediction(sample, hidden_state)
-            future_states = torch.cat([present_state, future_states], dim=1)
-            # flatten dimensions of (batch, sequence)
-            batch, seq = future_states.shape[:2]
-            flatten_states = future_states.flatten(0, 1)
+                future_states = self.future_prediction(sample, hidden_state)
+                future_states = torch.cat([present_state, future_states], dim=1)
+                # flatten dimensions of (batch, sequence)
+                batch, seq = future_states.shape[:2]
+                flatten_states = future_states.flatten(0, 1)
 
-            res.update(output_distribution)
-            for task_key, task_head in self.task_heads.items():
-                res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
+                res.update(output_distribution)
+                for task_key, task_head in self.task_heads.items():
+                    res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
         else:
             b, _, h, w = bevfeats.shape
             for task_key, task_head in self.task_heads.items():

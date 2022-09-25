@@ -140,8 +140,8 @@ class CenterHeadv1(BaseModule):
         Returns:
             tuple(list[dict]): Output results for tasks.
         """
-        # with record_function("3D Object Detection"):
-        return multi_apply(self.forward_single, feats)
+        with record_function("3D Object Detection"):
+            return multi_apply(self.forward_single, feats)
 
     def _gather_feat(self, feat, ind, mask=None):
         """Gather feature map.

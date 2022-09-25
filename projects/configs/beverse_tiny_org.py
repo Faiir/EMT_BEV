@@ -1,6 +1,6 @@
-_base_ = ["./beverse_singleframe_tiny_exp.py"]
+_base_ = ["./beverse_singleframe_org.py"]
 
-receptive_field = 4
+receptive_field = 3
 future_frames = 4
 future_discount = 0.95
 
@@ -10,10 +10,7 @@ model = dict(
         receptive_field=receptive_field,
         input_egopose=True,
         in_channels=64,
-        input_shape=(
-            128,
-            128,
-        ),  # (128, 128),
+        input_shape=(128, 128),
         with_skip_connect=True,
     ),
     pts_bbox_head=dict(
