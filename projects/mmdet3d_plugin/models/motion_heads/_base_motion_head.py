@@ -206,14 +206,14 @@ class BaseMotionHead(BaseTaskHead):
 
         res = {}
         if self.n_future > 0:
-            with record_function("Motion Prediction distribution forward"):
+            # with record_function("Motion Prediction distribution forward"):
 
-                present_state = bevfeats.unsqueeze(dim=1).contiguous()
+            present_state = bevfeats.unsqueeze(dim=1).contiguous()
 
-                # sampling probabilistic distribution
-                sample, output_distribution = self.distribution_forward(
-                    present_state, future_distribution_inputs, noise
-                )
+            # sampling probabilistic distribution
+            sample, output_distribution = self.distribution_forward(
+                present_state, future_distribution_inputs, noise
+            )
 
             b, _, _, h, w = present_state.shape
             hidden_state = present_state[:, 0]

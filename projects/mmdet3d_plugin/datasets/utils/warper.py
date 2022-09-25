@@ -99,24 +99,24 @@ class FeatureWarper(object):
             flow: (b, t, 6) sequence of 6 DoF pose
                 from t to t+1 (only uses the xy poriton)
         """
-        with record_function("cumulative_warp_features"):
-            sequence_length = x.shape[1]
-            if sequence_length == 1:
-                return x
+        # with record_function("cumulative_warp_features"):
+        sequence_length = x.shape[1]
+        if sequence_length == 1:
+            return x
 
-            flow = pose_vec2mat(flow)
+        flow = pose_vec2mat(flow)
 
-            out = [x[:, -1]]
-            cum_flow = flow[:, -2]
-            for t in reversed(range(sequence_length - 1)):
-                if bev_transform is not None:
-                    warp_flow = bev_transform @ cum_flow @ bev_transform.inverse()
-                else:
-                    warp_flow = cum_flow.clone()
+        out = [x[:, -1]]
+        cum_flow = flow[:, -2]
+        for t in reversed(range(sequence_length - 1)):
+            if bev_transform is not None:
+                warp_flow = bev_transform @ cum_flow @ bev_transform.inverse()
+            else:
+                warp_flow = cum_flow.clone()
 
-                out.append(self.warp_features(x[:, t], warp_flow, mode=mode))
-                # @ is the equivalent of torch.bmm
-                cum_flow = flow[:, t - 1] @ cum_flow
+            out.append(self.warp_features(x[:, t], warp_flow, mode=mode))
+            # @ is the equivalent of torch.bmm
+            cum_flow = flow[:, t - 1] @ cum_flow
 
         return torch.stack(out[::-1], 1)
 

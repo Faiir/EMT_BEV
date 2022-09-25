@@ -164,3 +164,7 @@ cython_debug/
 *.bin
 data/*
 logs/*
+weights/beverse_tiny.pth
+weights/beverse_small.pth
+*.ipynb
+*.Identifier
