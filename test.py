@@ -3,12 +3,11 @@ import os
 import torch
 
 from mmcv import Config, DictAction
-from mmcv.runner import get_dist_info, init_dist
-from mmcv.runner import load_checkpoint
+from mmcv.runner import get_dist_info, init_dist, load_checkpoint, wrap_fp16_model
 
 from mmdet3d.models import build_model
-from mmdet.datasets import replace_ImageToTensor
-
+from mmcv.parallel import MMDataParallel
+from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
 from mmcv import Config
 
 
@@ -179,9 +178,82 @@ def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
 torch.backends.cudnn.benchmark = True
 
 
+det_grid_conf = {
+    "xbound": [-62.0, 62.0, 0.254],
+    "ybound": [-36.2, 36.2, 0.245],
+    "zbound": [-10.0, 10.0, 20.0],
+    "dbound": [1.0, 60.0, 0.50],
+}
+
+motion_grid_conf = {
+    "xbound": [-60.0, 60.0, 0.25],
+    "ybound": [-36.0, 36.0, 0.25],
+    "zbound": [-10.0, 10.0, 20.0],
+    "dbound": [1.0, 60.0, 0.50],
+}
+
+map_grid_conf = {
+    "xbound": [-30.0, 30.0, 0.15],
+    "ybound": [-15.0, 15.0, 0.15],
+    "zbound": [-10.0, 10.0, 20.0],
+    "dbound": [1.0, 60.0, 0.50],
+}
+
+point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
+point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
+
 cfg = import_modules_load_config(
-    cfg_file="/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny_exp.py"
+    cfg_file="/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny_org.py"
+)
+
+cfg = update_cfg(
+    cfg,
+    det_grid_conf=det_grid_conf,
+    grid_conf=det_grid_conf,
+    map_grid_conf=map_grid_conf,
+    motion_grid_conf=motion_grid_conf,
+    point_cloud_range=point_cloud_range_extended_fustrum,
+    t_input_shape=(90, 155),
 )
 
 
-"model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
+model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
+
+dataset = build_dataset(cfg.data.test)
+data_loader = build_dataloader(
+    dataset,
+    samples_per_gpu=1,
+    workers_per_gpu=cfg.data.workers_per_gpu,
+    dist=False,
+    shuffle=False,
+)
+
+sample = next(iter(data_loader))
+model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
+wrap_fp16_model(model)
+
+model.cuda()
+model = MMDataParallel(model, device_ids=[0])
+
+
+motion_distribution_targets = {
+    # for motion prediction
+    "motion_segmentation": sample["motion_segmentation"][0],
+    "motion_instance": sample["motion_instance"][0],
+    "instance_centerness": sample["instance_centerness"][0],
+    "instance_offset": sample["instance_offset"][0],
+    "instance_flow": sample["instance_flow"][0],
+    "future_egomotion": sample["future_egomotions"][0],
+}
+
+
+with torch.no_grad():
+    result = model(
+        return_loss=False,
+        rescale=True,
+        img_metas=sample["img_metas"],
+        img_inputs=sample["img_inputs"],
+        future_egomotions=sample["future_egomotions"],
+        motion_targets=motion_distribution_targets,
+        img_is_valid=sample["img_is_valid"][0],
+    )

@@ -103,6 +103,7 @@ class BEVerse(MVXTwoStageDetector):
         if self.with_img_neck:
             x = self.img_neck(x)
             # print("after backbone with_img_neck: ", x.shape)
+
         if isinstance(x, tuple):
             x_list = []
             for x_tmp in x:
@@ -120,6 +121,8 @@ class BEVerse(MVXTwoStageDetector):
         # lifting with LSS
 
         start = timer()
+        for i in x:
+            print("img feat shape: ", i.shape)
         x = self.transformer([x] + img[1:])
 
         torch.cuda.synchronize()

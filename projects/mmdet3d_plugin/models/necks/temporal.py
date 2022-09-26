@@ -120,6 +120,7 @@ class Temporal3DConvModel(BaseModule):
             block_out_channels += extra_in_channels
 
         self.model = nn.Sequential(*modules)
+        print(self.model)
         self.out_channels = block_in_channels
         self.fp16_enabled = False
 

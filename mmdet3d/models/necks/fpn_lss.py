@@ -28,7 +28,9 @@ class Up(nn.Module):
         )
 
     def forward(self, x1, x2):
+        print(f"UP LSS input x1 {x1.shape} , x2 {x2.shape}")
         x1 = self.up(x1)
+        print(f"UP LSS x1 {x1.shape} , x2 {x2.shape}")
         x1 = torch.cat([x2, x1], dim=1)
         return self.conv(x1)
 

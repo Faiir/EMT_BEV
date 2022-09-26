@@ -123,7 +123,7 @@ def update_cfg(
     return cfg
 
 
-def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
+def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1):
     cfg_path = r"/content/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
@@ -247,8 +247,8 @@ def main() -> None:
     final_dims = [(224, 480), (256, 704), (512, 1408), (900, 1600)]
 
     backbones = [
-        "beverse_tiny.py",
-        "beverse_tiny.py",
+        "beverse_tiny_org.py",
+        "beverse_tiny_org.py",
         "beverse_small.py",
         "beverse_small.py",
     ]
@@ -270,7 +270,7 @@ def main() -> None:
     #     point_cloud_range[:3]) / voxel_size  # type: ignore
 
     point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
-    point_cloud_range_extended_fustrum = [-71.2, -71.2, -5.0, 71.2, 71.2, 3.0]
+    point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
     input_shapes = [
         (128, 128),
         (128, 128),
@@ -285,16 +285,16 @@ def main() -> None:
             [-51.2, 51.2, 0.4],
             [-51.2, 51.2, 0.2],
             [-51.2, 51.2, 0.1],
-            [-62.0, 62.0, 0.74],
-            [-62.0, 62.0, 0.37],
+            [-62.0, 62.0, 0.515],
+            [-62.0, 62.0, 0.254],
         ],
         "ybound": [
             [-51.2, 51.2, 0.8],
             [-51.2, 51.2, 0.4],
             [-51.2, 51.2, 0.2],
             [-51.2, 51.2, 0.1],
-            [-36.2, 36.2, 0.75],
-            [-36.2, 36.2, 0.375],
+            [-36.2, 36.2, 0.50],
+            [-36.2, 36.2, 0.245],
         ],
         "zbound": [-10.0, 10.0, 20.0],
         "dbound": [
@@ -302,8 +302,8 @@ def main() -> None:
             [1.0, 60.0, 1.0],
             [1.0, 60.0, 0.5],
             [1.0, 60.0, 0.5],
-            [1.0, 70.0, 1.0],
-            [1.0, 70.0, 5.0],
+            [1.0, 70.0, 0.5],
+            [1.0, 70.0, 0.5],
         ],  # [(lower_bound, upper_bound, interval).]
     }
 
@@ -312,7 +312,7 @@ def main() -> None:
             [-50.0, 50.0, 0.5],
             [-50.0, 50.0, 0.25],
             [-50.0, 50.0, 0.125],
-            [-50.0, 50.0, 0.075],
+            [-50.0, 50.0, 0.125],
             [-60.0, 60.0, 0.5],
             [-60.0, 60.0, 0.25],
         ],
@@ -321,8 +321,8 @@ def main() -> None:
             [-50.0, 50.0, 0.25],
             [-50.0, 50.0, 0.125],
             [-50.0, 50.0, 0.075],
-            [-35.0, 35.0, 0.5],
-            [-35.0, 35.0, 0.25],
+            [-36.0, 36.0, 0.5],
+            [-36.0, 36.0, 0.25],
         ],
         "zbound": [-10.0, 10.0, 20.0],
         "dbound": [
@@ -371,50 +371,12 @@ def main() -> None:
     # grid_confs = (det_grid_conf, motion_grid_conf, map_grid_conf)
 
     # First test settings differently and then select interesting combinations based on findings
-    for c, (backbone, resize_lim, final_dim) in enumerate(
-        zip(backbones, resize_lims, final_dims)
-    ):
-        cfg = import_modules_load_config(cfg_file=backbone)
-        cfg = update_cfg(cfg, resize_lim=resize_lim, final_dim=final_dim)
-        cfg["data_aug_conf"]["resize_lim"] = resize_lim
-        cfg["data_aug_conf"]["final_dim"] = final_dims
-
-        if pt_profiler:
-            with torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
-                    worker_name="worker0",
-                ),
-                record_shapes=False,
-                profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=False,
-            ) as p:
-                perform_10_steps(cfg, p)
-        else:
-            perform_10_steps(cfg, None)
-
-        logger.debug(
-            "******" * 6
-            + " resize_lim "
-            + str(resize_lim)
-            + " final_dim: "
-            + str(final_dim)
-            + "******" * 6
-        )
-    logger.debug("*******" * 12)
 
     for c, (future_frames, receptive_field) in enumerate(
         zip(future_frames_list, receptive_field_list)
     ):
         cfg = import_modules_load_config()
-        cfg = update_cfg(
-            cfg, future_frames=future_frames, receptive_field=receptive_field
-        )
+        cfg = update_cfg(cfg, n_future=future_frames, receptive_field=receptive_field)
         cfg["future_frames"] = future_frames
         cfg["receptive_field"] = receptive_field
 
@@ -433,7 +395,11 @@ def main() -> None:
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
                 with_stack=False,
             ) as p:
-                perform_10_steps(cfg, p)
+                try:
+                    perform_10_steps(cfg, p)
+                except Exception as e:
+                    logger.debug(e)
+                    print(f"Experiment {c} failed with {e} - receptive field")
         else:
             perform_10_steps(cfg, None)
 
@@ -463,10 +429,6 @@ def main() -> None:
         map_grid_conf["zbound"] = map_grid_confs["zbound"]
         map_grid_conf["dbound"] = map_grid_confs["dbound"][i]
 
-        cfg["det_grid_conf"] = det_grid_conf
-        cfg["motion_grid_conf"] = motion_grid_conf
-        cfg["map_grid_conf"] = map_grid_conf
-        cfg["grid_conf"] = det_grid_conf
         if i <= 4:
             pcr = point_cloud_range_base
         else:
@@ -482,7 +444,10 @@ def main() -> None:
             point_cloud_range=pcr,
             t_input_shape=input_shapes[i],
         )
-
+        cfg["det_grid_conf"] = det_grid_conf
+        cfg["motion_grid_conf"] = motion_grid_conf
+        cfg["map_grid_conf"] = map_grid_conf
+        cfg["grid_conf"] = det_grid_conf
         if pt_profiler:
             with torch.profiler.profile(
                 activities=[
@@ -498,12 +463,57 @@ def main() -> None:
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
                 with_stack=False,
             ) as p:
-                perform_10_steps(cfg, p)
+                try:
+                    perform_10_steps(cfg, p)
+                except Exception as e:
+                    logger.debug(e)
+                    print(f"Experiment {c} failed with {e} - final_dim")
         else:
             perform_10_steps(cfg, None)
 
         logger.debug(
             "******" * 6 + " det_grid_conf " + str(det_grid_conf) + "******" * 6
+        )
+    logger.debug("*******" * 12)
+
+    for c, (backbone, resize_lim, final_dim) in enumerate(
+        zip(backbones, resize_lims, final_dims)
+    ):
+        cfg = import_modules_load_config(cfg_file=backbone)
+        cfg = update_cfg(cfg, resize_lim=resize_lim, final_dim=final_dim)
+        cfg["data_aug_conf"]["resize_lim"] = resize_lim
+        cfg["data_aug_conf"]["final_dim"] = final_dims
+
+        if pt_profiler:
+            with torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,
+                    torch.profiler.ProfilerActivity.CUDA,
+                ],
+                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
+                    worker_name="worker0",
+                ),
+                record_shapes=False,
+                profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+                with_stack=False,
+            ) as p:
+                try:
+                    perform_10_steps(cfg, p)
+                except Exception as e:
+                    logger.debug(e)
+                    print(f"Experiment {c} failed with {e} - final_dim")
+        else:
+            perform_10_steps(cfg, None)
+
+        logger.debug(
+            "******" * 6
+            + " resize_lim "
+            + str(resize_lim)
+            + " final_dim: "
+            + str(final_dim)
+            + "******" * 6
         )
     logger.debug("*******" * 12)
 

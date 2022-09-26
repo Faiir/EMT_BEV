@@ -517,7 +517,7 @@ class PyramidSpatioTemporalPooling(nn.Module):
     def forward(self, *inputs):
         (x,) = inputs
         b, _, t, h, w = x.shape
-
+        print("PyramidSpatioTemporalPooling input ", x.shape)
         # Do not include current tensor when concatenating
         out = []
         for f in self.features:
@@ -525,7 +525,7 @@ class PyramidSpatioTemporalPooling(nn.Module):
             # print("x_pool: ", x.shape)
 
             x_pool = f(x)[:, :, :-1].contiguous()
-
+            print("PyramidSpatioTemporalPooling x_pool1 ", x_pool.shape)
             c = x_pool.shape[1]
 
             x_pool = nn.functional.interpolate(
@@ -534,9 +534,9 @@ class PyramidSpatioTemporalPooling(nn.Module):
                 mode="bilinear",
                 align_corners=True,
             )
-
+            print("PyramidSpatioTemporalPooling x_pool2 ", x_pool.shape)
             x_pool = x_pool.view(b, c, t, h, w)
-
+            print("PyramidSpatioTemporalPooling x_pool3 ", x_pool.shape)
             out.append(x_pool)
         out = torch.cat(out, 1)
         return out
@@ -587,10 +587,13 @@ class TemporalBlock(nn.Module):
             self.pyramid_pooling = PyramidSpatioTemporalPooling(
                 self.in_channels, reduction_channels, pool_sizes
             )
-            agg_in_channels += len(pool_sizes) * reduction_channels
             print(
-                f"temp block, in_channels  {self.in_channels} reduction_channels  {reduction_channels} pool_sizes  {pool_sizes} "
+                f"temp block, in_channels  {self.in_channels} reduction_channels  {reduction_channels} pool_sizes  {pool_sizes}  agg_in_channles {agg_in_channels}"
             )
+
+            agg_in_channels += len(pool_sizes) * reduction_channels
+
+            print(f"agg_in_channels {agg_in_channels}")
 
         # Feature aggregation
         self.aggregation = nn.Sequential(
