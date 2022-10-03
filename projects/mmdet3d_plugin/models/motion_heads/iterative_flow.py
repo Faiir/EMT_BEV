@@ -105,7 +105,7 @@ class IterativeFlow(BaseMotionHead):
                     self.logger.debug(
                         "Temp hidden_state shape " + str(hidden_state.shape)
                     )
-
+                with record_function("iterative_flow_part2_future_prediction"):
                     future_states = self.future_prediction(sample, hidden_state)
                     self.logger.debug(
                         "Temp future_states shape " + str(future_states.shape)
