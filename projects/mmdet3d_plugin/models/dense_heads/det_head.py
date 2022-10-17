@@ -122,7 +122,7 @@ class CenterHeadv1(BaseModule):
         """
 
         ret_dicts = []
-
+        self.logger.debug(f"CenterHead Input: {str(x.shape)}")
         x = self.shared_conv(x)
 
         for task in self.task_heads:

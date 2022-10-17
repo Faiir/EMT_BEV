@@ -202,7 +202,9 @@ class TransformerLSS(BaseModule):
         x, rots, trans, intrins, post_rots, post_trans = input
         B, S, N, C, H, W = x.shape
         # flatten (batch, seq, num_cam)
+        self.logger.debug("LSS Input " + str(x.shape))
         x = x.view(B * S * N, C, H, W)
+        self.logger.debug("LSS Input " + str(x.shape))
 
         torch.cuda.synchronize()
         start = timer()
@@ -242,7 +244,9 @@ class TransformerLSS(BaseModule):
         torch.cuda.synchronize()
         end = timer()
         t_BEV_pool = (end - start) * 1000
-        self.logger.debug("LSS t_BEV_pool " + str(t_BEV_pool))
+        self.logger.debug(
+            "LSS t_BEV_pool " + "{:.2f}".format(t_BEV_pool)
+        )  # str(t_BEV_pool))
         self.logger.debug("LSS t_BEV_pool shape " + str(bev_feat.shape))
         # bev_feat = self.voxel_pooling(geom, volume)
         # bev_feat = bev_feat.view(B, S, *bev_feat.shape[1:])

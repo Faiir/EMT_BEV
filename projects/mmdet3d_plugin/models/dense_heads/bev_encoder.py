@@ -254,6 +254,9 @@ class BevEncode(nn.Module):
         torch.cuda.synchronize()
         end = timer()
         t_BEV_Encoder = (end - start) * 1000
-        self.logger.debug("t_BEV_Encoder " + str(t_BEV_Encoder))
+        self.logger.debug(
+            "t_BEV_Encoder " + "{:.2f}".format(t_BEV_Encoder)
+        )  # str(t_BEV_Encoder))
+
         self.logger.debug("BEV_Encoder res shape" + str(res.shape))
         return res

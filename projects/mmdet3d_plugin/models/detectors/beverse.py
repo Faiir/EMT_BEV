@@ -92,11 +92,13 @@ class BEVerse(MVXTwoStageDetector):
         torch.cuda.synchronize()
         end = timer()
         t_backbone = (end - start) * 1000
-        self.logger.debug(t_backbone)
+        self.logger.debug(
+            " IMG backbone todal: " + "{:.2f}".format(t_backbone)
+        )  # t_backbone)
 
         # print(
         #     "after backbone: ",          len(x),
-        # )
+        # )e
         # print("shape in list: ", [x_i.shape for x_i in x])
 
         start = timer()
@@ -115,7 +117,10 @@ class BEVerse(MVXTwoStageDetector):
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
         end = timer()
         t_feature_upscaling = (end - start) * 1000
-        self.logger.debug(t_feature_upscaling)
+        self.logger.debug(
+            "feature upscaling: " + "{:.2f}".format(t_feature_upscaling)
+        )  # t_feature_upscaling)
+
         self.logger.debug("after transformation: " + str(x.shape))
 
         # lifting with LSS
@@ -129,7 +134,8 @@ class BEVerse(MVXTwoStageDetector):
         end = timer()
         t_LSS = (end - start) * 1000
         # t_BEV = time.time()
-        self.logger.debug(t_LSS)
+        self.logger.debug("LLS time: " + "{:.2f}".format(t_feature_upscaling))  # t_LSS)
+
         self.logger.debug("after LLS : " + str(x.shape))
         # temporal processing
 
@@ -145,7 +151,9 @@ class BEVerse(MVXTwoStageDetector):
         end = timer()
         t_temporal = (end - start) * 1000
         # t_temporal = time.time()
-        self.logger.debug("after Temporal : " + str(t_temporal))
+        self.logger.debug(
+            "after Temporal : " + "{:.2f}".format(t_temporal)
+        )  # str(t_temporal))
         self.logger.debug("after Temporal : " + str(x.shape))
         if count_time:
             return x, {
@@ -394,8 +402,8 @@ class BEVerse(MVXTwoStageDetector):
 
         t_Extract_img_feat_total = (end - start) * 1000
         self.logger.debug(
-            "BEVerse Extract_img_feat_total " + str(t_Extract_img_feat_total)
-        )
+            "BEVerse Extract_img_feat_total "
+            + "{:.2f}".format(t_Extract_img_feat_total))  # str(t_Extract_img_feat_total)        )
 
         start = timer()
         predictions = self.simple_test_pts(
@@ -407,7 +415,7 @@ class BEVerse(MVXTwoStageDetector):
 
         time_stats["t_end"] = (end - start) * 1000
         t_predictions = (end - start) * 1000
-        self.logger.debug("BEVerse Box t_predictions " + str(t_predictions))
+        self.logger.debug("BEVerse Box t_predictions " + "{:.2f}".format(t_predictions))#str(t_predictions))
 
         if "bbox_results" in predictions:
             bbox_list = [dict() for i in range(len(img_metas))]

@@ -53,7 +53,10 @@ class DistributionModule(nn.Module):
         torch.cuda.synchronize()
         end = timer()
         t_DistributionModule = (end - start) * 1000
-        self.logger.debug(" DistributionModule " + str(t_DistributionModule))
+        self.logger.debug(
+            " DistributionModule " + "{:.2f}".format(t_DistributionModule)
+        )  # str(t_DistributionModule))
+
         return mu, log_sigma
 
 
@@ -102,8 +105,9 @@ class SpatialDistributionModule(nn.Module):
         end = timer()
         t_SpatialDistributionModule = (end - start) * 1000
         self.logger.debug(
-            " SpatialDistributionModule " + str(t_SpatialDistributionModule)
-        )
+            " SpatialDistributionModule " + "{:.2f}".format(t_SpatialDistributionModule)
+        )  # str(t_SpatialDistributionModule))
+
         return mu, log_sigma
 
 
@@ -172,7 +176,9 @@ class FuturePrediction(torch.nn.Module):
         torch.cuda.synchronize()
         end = timer()
         t_FuturePrediction = (end - start) * 1000
-        self.logger.debug(" FuturePrediction " + str(t_FuturePrediction))
+        self.logger.debug(
+            " FuturePrediction " + "{:.2f}".format(t_FuturePrediction)
+        )  # str(t_FuturePrediction))
 
         return x
 

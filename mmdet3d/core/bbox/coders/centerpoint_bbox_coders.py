@@ -229,5 +229,8 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         torch.cuda.synchronize()
         end = timer()
         t_bbox_coders = (end - start) * 1000
-        self.logger.debug("t_bbox_coders " + str(t_bbox_coders))
+        self.logger.debug(
+            "t_bbox_coders " + "{:.2f}".format(t_bbox_coders)
+        )  # str(t_bbox_coders))
+
         return predictions_dicts

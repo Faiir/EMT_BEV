@@ -120,7 +120,7 @@ class Temporal3DConvModel(BaseModule):
             block_out_channels += extra_in_channels
 
         self.model = nn.Sequential(*modules)
-        print(self.model)
+
         self.out_channels = block_in_channels
         self.fp16_enabled = False
 
@@ -145,8 +145,9 @@ class Temporal3DConvModel(BaseModule):
             end = timer()
             t_cumulative_warp_features = (end - start) * 1000
             self.logger.debug(
-                "Temp cumulative_warp_features " + str(t_cumulative_warp_features)
-            )
+                "Temp cumulative_warp_features "
+                + "{:.2f}".format(t_cumulative_warp_features)
+            )  # str(t_cumulative_warp_features)            )
             self.logger.debug("Temp cumulative_warp_features shape " + str(x.shape))
 
             if self.input_egopose:
@@ -196,6 +197,8 @@ class Temporal3DConvModel(BaseModule):
             torch.cuda.synchronize()
             end = timer()
             t_TempModel = (end - start) * 1000
-            self.logger.debug("Temp t_TempModel " + str(t_TempModel))
+            self.logger.debug(
+                "Temp t_TempModel " + "{:.2f}".format(t_TempModel)
+            )  # str(t_TempModel))
             self.logger.debug("Temp t_TempModel shape" + str(x.shape))
         return x

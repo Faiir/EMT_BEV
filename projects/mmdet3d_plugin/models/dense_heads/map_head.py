@@ -164,7 +164,7 @@ class MapHead(BaseTaskHead):
         torch.cuda.synchronize()
         end = timer()
         t_maphead = (end - start) * 1000
-        self.logger.debug("Map head" + str(t_maphead))
+        self.logger.debug("Map head" + "{:.2f}".format(t_maphead))  # str(t_maphead))
 
         return ret_dict
 

@@ -181,8 +181,8 @@ class MotionHead(BaseTaskHead):
                 "Temp output_distribution shape " + str(output_distribution.shape)
             )
             self.logger.debug(
-                "Temp distribution_forward " + str(t_distribution_forward)
-            )
+                "Temp distribution_forward " + "{:.2f}".format(t_distribution_forward)
+            )  # str(t_distribution_forward))
 
             b, _, _, h, w = present_state.shape
             hidden_state = present_state[:, 0]
@@ -218,7 +218,9 @@ class MotionHead(BaseTaskHead):
         torch.cuda.synchronize()
         end_f = timer()
         t_motionprediction = (end_f - start_f) * 1000
-        self.logger.debug("Temp t_motionprediction " + str(t_motionprediction))
+        self.logger.debug(
+            "Temp t_motionprediction " + "{:.2f}".format(t_motionprediction)
+        )  # str(t_motionprediction))
 
         return res
 

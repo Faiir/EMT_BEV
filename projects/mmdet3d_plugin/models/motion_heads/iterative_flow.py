@@ -96,8 +96,9 @@ class IterativeFlow(BaseMotionHead):
                     )
                     self.logger.debug("Temp sample shape " + str(sample.shape))
                     self.logger.debug(
-                        "Temp distribution_forward " + str(t_distribution_forward)
-                    )
+                        "Temp distribution_forward "
+                        + "{:.2f}".format(t_distribution_forward)
+                    )  # str(t_distribution_forward)                    )
 
                     b, _, _, h, w = present_state.shape
                     hidden_state = present_state[:, 0]
@@ -131,6 +132,9 @@ class IterativeFlow(BaseMotionHead):
             torch.cuda.synchronize()
             end_f = timer()
             t_IterativeFlow = (end_f - start_f) * 1000
-            self.logger.debug(" t_IterativeFlow " + str(t_IterativeFlow))
+            self.logger.debug(
+                " t_IterativeFlow " + "{:.2f}".format(t_IterativeFlow)
+            )  # str(t_IterativeFlow))
+
             # self.logger.debug("Temp future_states shape " + str(future_states.shape))
         return res
