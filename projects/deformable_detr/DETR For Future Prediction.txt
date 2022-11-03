@@ -1,0 +1,259 @@
+DETR For Future Prediction
+
+
+tensor_list: NestedTensor -> inputs, mask_list
+samples: NestedTensor -> inputs, mask_list
+tensor_list.tensors -> inputs 
+backbone(samples) ->  inputs, mask_list
+
+NestedTensor(src, mask) -> 
+
+NestedTensor Reformatting:
+    BackboneBase 
+        Forward -> every time  backbone is called both have to be passed ---
+    Joiner Forward 
+    DeformDETR > Forward 
+    DeformDETRSeg Forward 
+    Pos Embedding Both 
+        Forward  - Feats & Mask 
+        Forward  - Feats & Mask 
+
+
+Backbone Check where impact and what output: 
+
+Relevant how features are transformed 
+
+
+Relevant hyper parameter: 
+    ResNet Channels 
+        Affects 
+            InputProjections , masked_convs , 
+
+    Mask -> If resize?  just mask = torch.ones((b, h, w), dtype=torch.bool, device=device) for BEV? 
+    hidden dim 
+    object queries -> 50 / 100 
+    dim_feed_forward 
+    positional embedding 
+    points 
+    input size 
+
+
+TODO #
+    Temporal Object Queries  -> https://github.com/megvii-research/MOTR/blob/main/models/qim.py
+    Output Heads 
+
+
+
+Semantic Segmentation 
+
+
+decoder: hs, inter_references 
+    - hs hs.shape = torch.Size([1, 1, 300, 256])
+    - init_reference  init_reference.shape = torch.Size([1, 300, 2])  
+Encoder -> Memory 
+    memory.shape =torch.Size([1, 23650, 256])
+Memory -< seg_memory, seg_mask 
+    seg_memory.shape =torch.Size([1, 950, 256]) seg_mask.shape =torch.Size([1, 950])
+    after Permute/View seg_memory.shape =torch.Size([1, 256, 25, 38]) seg_mask.shape =torch.Size([1, 25, 38])
+
+**Decoder Output**
+- hs hs.shape = torch.Size([1, 1, 300, 256]) -> Object Queries After Decoder 
+- init_reference  init_reference.shape = torch.Size([1, 300, 2])   > X,Y References 
+- enc_outputs_class  enc_outputs_class = None 
+- enc_outputs_coord_unact  enc_outputs_coord_unact = None 
+- seg_memory  seg_memory.shape = torch.Size([1, 256, 25, 38])  > Encoder Segmentation Memory H/32, W/32
+- seg_mask  seg_mask.shape = torch.Size([1, 25, 38]) > Encoder Segmentation Mask 
+
+
+
+**Mask Head**
+- output_class shape outputs_class.shape = torch.Size([1, 1, 300, 250]),
+-  outputs_coord outputs_coord.shape = torch.Size([1, 1, 300, 4])
+-  MH AttentionMap Shape weights.shape = torch.Size([1, 300, 8, 25, 38])
+-  bbox_mask shape bbox_mask.shape = torch.Size([1, 300, 8, 25, 38])
+
+
+**ConvBlockt**
+- Input MHead SegConv Shape x.shape = torch.Size([1, 256, 25, 38]), 
+- bbox_mask bbox_mask.shape = torch.Size([1, 300, 8, 25, 38]), B x OQ x Head x SegMem(H/32 W/32)
+- features from image torch.Size([1, 1024, 25, 38])
+- features from image torch.Size([1, 512, 25, 38])
+- features from image torch.Size([1, 256, 50, 76])
+- First Expand: x.shape = torch.Size([300, 264, 25, 38])
+- Sec Expand: x.shape = torch.Size([300, 64, 25, 38])
+- Third Expand: x.shape = torch.Size([300, 32, 25, 38])
+- Fourth Expand: x.shape = torch.Size([300, 16, 50, 76])
+- Out MHead SegConv Shape x.shape = torch.Size([300, 1, 50, 76])
+- seg_masks shape seg_masks.shape = torch.Size([300, 1, 50, 76])
+- outputs_seg_masks shape outputs_seg_masks.shape = torch.Size([1, 300, 50, 76])
+
+
+C*Nq 
+300x256 
+    76,800
+
+Wq= W/32 
+Nq = Wq Hq = 950
+
+800
+400 2
+200 3
+100 4
+50 5 
+25 6
+
+
+Intermediate LayerGetter used to define input projection 
+Must be fitting with Backbone Construction -> Setting Introduction
+
+resnet 18 # test with both 
+    torch.Size([1, 64, 200, 301])
+    torch.Size([1, 128, 100, 151])
+    torch.Size([1, 256, 50, 76])
+    torch.Size([1, 512, 25, 38])
+
+resnet50 
+    torch.Size([1, 256, 200, 301])
+    torch.Size([1, 512, 100, 151])
+    torch.Size([1, 1024, 50, 76])
+    torch.Size([1, 2048, 50, 76])
+
+torch.Size([1, 64, 200, 301])
+torch.Size([1, 128, 100, 151])
+torch.Size([1, 256, 50, 76])
+torch.Size([1, 512, 25, 38])
+ModuleList(
+  (0): Conv2d(1024, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (1): Conv2d(512, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (2): Conv2d(256, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (3): Conv2d(128, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+)
+
+
+
+
+
+bbox_mask.shape = torch.Size([1, 300, 8, 25, 38])
+torch.Size([1, 512, 100, 151])
+torch.Size([1, 1024, 50, 76])
+torch.Size([1, 2048, 50, 76])
+ModuleList(
+  (0): Conv2d(2048, 1024, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (1): Conv2d(1024, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (2): Conv2d(512, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+)
+Input MHead SegConv Shape x.shape = torch.Size([1, 256, 25, 38]), bbox_mask bbox_mask.shape = torch.Size([1, 300, 8, 25, 38]),
+features from image torch.Size([1, 1024, 25, 38])
+features from image torch.Size([1, 512, 25, 38])
+features from image torch.Size([1, 256, 50, 76])
+First Expand: x.shape = torch.Size([300, 264, 25, 38])
+Sec Expand: x.shape = torch.Size([300, 64, 25, 38])
+Third Expand: x.shape = torch.Size([300, 32, 25, 38])
+Fourth Expand: x.shape = torch.Size([300, 16, 50, 76])
+Out MHead SegConv Shape x.shape = torch.Size([300, 1, 50, 76])
+seg_masks.shape = torch.Size([300, 1, 50, 76])
+outputs_seg_masks.shape = torch.Size([1, 300, 50, 76]) <-- 1/16
+
+
+
+
+
+
+
+
+torch.Size([1, 64, 200, 301])
+torch.Size([1, 128, 100, 151])
+torch.Size([1, 256, 50, 76])
+torch.Size([1, 512, 25, 38])
+ModuleList(
+  (0): Conv2d(512, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (1): Conv2d(256, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+  (2): Conv2d(128, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+)
+in maskhead
+Input MHead SegConv Shape x.shape = torch.Size([1, 256, 25, 38]), bbox_mask bbox_mask.shape = torch.Size([1, 300, 8, 25, 38]),
+features from image torch.Size([1, 256, 13, 19])
+features from image torch.Size([1, 128, 25, 38])
+features from image torch.Size([1, 64, 50, 76])
+First Expand: x.shape = torch.Size([300, 264, 25, 38])
+First cur_fpn: cur_fpn.shape = torch.Size([1, 128, 13, 19])
+cur_fpn.size(0) != x.size(0): cur_fpn.shape = torch.Size([300, 128, 13, 19])
+Interpolutaion with expan: x.shape = torch.Size([300, 128, 13, 19])
+Sec Expand: x.shape = torch.Size([300, 64, 13, 19])
+2 adapter2: cur_fpn.shape = torch.Size([1, 64, 25, 38])
+cur_fpn.size(0) != x.size(0): cur_fpn.shape = torch.Size([300, 64, 25, 38])
+Interpolutaion with expan: x.shape = torch.Size([300, 64, 25, 38])
+Third Expand: x.shape = torch.Size([300, 32, 25, 38])
+3 adapter3: cur_fpn.shape = torch.Size([1, 32, 50, 76])
+cur_fpn.size(0) != x.size(0): cur_fpn.shape = torch.Size([300, 32, 50, 76])
+Interpolutaion with expan: x.shape = torch.Size([300, 32, 50, 76])
+Fourth Expand: x.shape = torch.Size([300, 16, 50, 76])
+Out MHead SegConv Shape x.shape = torch.Size([300, 1, 50, 76])
+seg_masks shape seg_masks.shape = torch.Size([300, 1, 50, 76])
+outputs_seg_masks shape outputs_seg_masks.shape = torch.Size([1, 300, 50, 76])
+
+
+
+
+
+ORIGINAL DETR 
+
+inputs: torch.Size([1, 3, 800, 1066])
+input_layer1: torch.Size([1, 64, 200, 267])
+input_layer2: torch.Size([1, 256, 200, 267])
+input_layer3: torch.Size([1, 512, 100, 134])
+input_layer4: torch.Size([1, 1024, 50, 67])
+output_layer4: torch.Size([1, 2048, 25, 34])
+h torch.Size([1, 256, 25, 34])
+25 34
+pos torch.Size([850, 1, 256])
+torch.Size([850, 1, 256])
+mem torch.Size([850, 1, 256])
+h torch.Size([1, 100, 256])
+
+
+
+print(dim, fpn_dims, context_dim, inter_dims)
+264 [1024, 512, 256] 256 [264, 128, 64, 32, 16, 4]
+
+
+src: torch.Size([1, 2048, 25, 38])
+src_proj: torch.Size([1, 256, 25, 38])
+hs: torch.Size([6, 1, 100, 256]), memory: torch.Size([1, 256, 25, 38])
+bbox_mask: torch.Size([1, 100, 8, 25, 38])
+Inputs x: torch.Size([1, 256, 25, 38]) bbox_mask: torch.Size([1, 100, 8, 25, 38])
+ fpn: torch.Size([1, 1024, 50, 75])
+ fpn: torch.Size([1, 512, 100, 150])
+ fpn: torch.Size([1, 256, 200, 300])
+Inputs x: torch.Size([100, 264, 25, 38])
+Before adapter1: torch.Size([100, 128, 25, 38])
+after adapter1: torch.Size([1, 128, 50, 75])
+size !xsize  adapter1: torch.Size([100, 128, 50, 75])
+after interpolation: torch.Size([100, 128, 50, 75])
+Before adapter1: torch.Size([100, 64, 50, 75])
+after adapter2: torch.Size([1, 64, 100, 150])
+size !xsize  adapter2: torch.Size([100, 64, 100, 150])
+after interpolation2: torch.Size([100, 64, 100, 150])
+Before adapter3: torch.Size([100, 32, 100, 150])
+after adapter3: torch.Size([1, 32, 200, 300])
+size !xsize  adapter3: torch.Size([100, 32, 200, 300])
+after interpolation3: torch.Size([100, 32, 200, 300])
+Before out: torch.Size([100, 1, 200, 300])
+
+
+
+3x800x1600 <--- 
+400x800
+200x400
+...
+
+1 x F
+
+35x75
+70x150
+...
+
+200x400  1/4 <- 
+ 
+
+
