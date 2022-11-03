@@ -110,6 +110,8 @@ class CenterHeadv1(BaseModule):
             )
             self.task_heads.append(builder.build_head(separate_head))
 
+        print(self.task_heads)
+        
     def forward_single(self, x):
         """Forward function for CenterPoint.
 
@@ -123,7 +125,7 @@ class CenterHeadv1(BaseModule):
 
         ret_dicts = []
         self.logger.debug(f"CenterHead Input: {str(x.shape)}")
-        x = self.shared_conv(x)
+        x = self.shared_conv(x) # --> 256 -> 64 
 
         for task in self.task_heads:
             ret_dicts.append(task(x))
@@ -383,6 +385,7 @@ class CenterHeadv1(BaseModule):
         Returns:
             dict[str:torch.Tensor]: Loss of heatmap and bbox of each task.
         """
+        print("Loss Detection")
         heatmaps, anno_boxes, inds, masks = self.get_targets(gt_bboxes_3d, gt_labels_3d)
         loss_dict = dict()
         for task_id, preds_dict in enumerate(preds_dicts):
@@ -434,6 +437,7 @@ class CenterHeadv1(BaseModule):
         Returns:
             list[dict]: Decoded bbox, scores and labels after nms.
         """
+        print("get_BBoxes")
         rets = []
         for task_id, preds_dict in enumerate(preds_dicts):
             num_class_with_bg = self.num_classes[task_id]
@@ -540,6 +544,7 @@ class CenterHeadv1(BaseModule):
         img_metas,
         task_id,
     ):
+        print("get_task_detections")
         """Rotate nms for each task.
 
         Args:

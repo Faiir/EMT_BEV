@@ -134,6 +134,9 @@ class MapHead(BaseTaskHead):
                 class_weights=torch.tensor(class_weights).float(),
             )
 
+        # print("MapHead:", self.task_heads)
+        # print("SemanticStuff ", self.task_heads["semantic_seg"])
+
     def get_semantic_indices(self, predictions, targets=None):
         if self.binary_cls:
             pred_semantic_scores = predictions["semantic_seg"].float().sigmoid()
@@ -165,6 +168,9 @@ class MapHead(BaseTaskHead):
         end = timer()
         t_maphead = (end - start) * 1000
         self.logger.debug("Map head" + "{:.2f}".format(t_maphead))  # str(t_maphead))
+
+        self.logger.debug(f"Map head input: {str(x.shape)}")
+        self.logger.debug(f"Map head output {str(ret_dict['semantic_seg'].shape)}")
 
         return ret_dict
 

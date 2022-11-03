@@ -126,8 +126,8 @@ class BEVerse(MVXTwoStageDetector):
         # lifting with LSS
 
         start = timer()
-        for i in x:
-            print("img feat shape: ", i.shape)
+        # for i in x:
+        #     print("img feat shape: ", i.shape)
         x = self.transformer([x] + img[1:])
 
         torch.cuda.synchronize()
@@ -403,7 +403,8 @@ class BEVerse(MVXTwoStageDetector):
         t_Extract_img_feat_total = (end - start) * 1000
         self.logger.debug(
             "BEVerse Extract_img_feat_total "
-            + "{:.2f}".format(t_Extract_img_feat_total))  # str(t_Extract_img_feat_total)        )
+            + "{:.2f}".format(t_Extract_img_feat_total)
+        )  # str(t_Extract_img_feat_total)        )
 
         start = timer()
         predictions = self.simple_test_pts(
@@ -415,7 +416,9 @@ class BEVerse(MVXTwoStageDetector):
 
         time_stats["t_end"] = (end - start) * 1000
         t_predictions = (end - start) * 1000
-        self.logger.debug("BEVerse Box t_predictions " + "{:.2f}".format(t_predictions))#str(t_predictions))
+        self.logger.debug(
+            "BEVerse Box t_predictions " + "{:.2f}".format(t_predictions)
+        )  # str(t_predictions))
 
         if "bbox_results" in predictions:
             bbox_list = [dict() for i in range(len(img_metas))]

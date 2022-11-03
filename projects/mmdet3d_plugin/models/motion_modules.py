@@ -200,7 +200,7 @@ class ResFuturePrediction(torch.nn.Module):
         self.flow_warp = flow_warp
         self.prob_each_future = prob_each_future
         self.logger = logging.getLogger("timelogger")
-
+        print("Future Prediction")
         # 每个时刻，都以 sample_distribution 和 当前帧的 bev features 作为输入
         # 1. offset prediction: 预测 feature flow ==> warp features
         # 2. gru_cell: reset & update

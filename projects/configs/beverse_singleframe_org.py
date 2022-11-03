@@ -258,8 +258,8 @@ model = dict(
 )
 
 dataset_type = "MTLEgoNuScenesDataset"
-data_root = "data/nuscenes/"
-data_info_path = "data/nuscenes_infos/"
+data_root = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes/"
+data_info_path = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes_infos/"
 
 train_pipeline = [
     # load image and apply image-view augmentation

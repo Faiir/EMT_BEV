@@ -137,4 +137,5 @@ class IterativeFlow(BaseMotionHead):
             )  # str(t_IterativeFlow))
 
             # self.logger.debug("Temp future_states shape " + str(future_states.shape))
+        print(list(res.keys()))
         return res

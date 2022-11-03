@@ -9,7 +9,15 @@ from .geometry import mat2pose_vec, pose_vec2mat, warp_features
 import pdb
 
 
-def convert_instance_mask_to_center_and_offset_label(instance_img, future_egomotion, num_instances, ignore_index=255, subtract_egomotion=True, sigma=3, spatial_extent=None):
+def convert_instance_mask_to_center_and_offset_label(
+    instance_img,
+    future_egomotion,
+    num_instances,
+    ignore_index=255,
+    subtract_egomotion=True,
+    sigma=3,
+    spatial_extent=None,
+):
 
     seq_len, h, w = instance_img.shape
     # heatmap
@@ -19,20 +27,25 @@ def convert_instance_mask_to_center_and_offset_label(instance_img, future_egomot
     # future flow
     future_displacement_label = ignore_index * torch.ones(seq_len, 2, h, w)
     # x is vertical displacement, y is horizontal displacement
-    x, y = torch.meshgrid(torch.arange(h, dtype=torch.float),
-                          torch.arange(w, dtype=torch.float), indexing='ij')
+    x, y = torch.meshgrid(
+        torch.arange(h, dtype=torch.float),
+        torch.arange(w, dtype=torch.float),
+        indexing="ij",
+    )
 
     if subtract_egomotion:
-        future_egomotion_inv = mat2pose_vec(
-            pose_vec2mat(future_egomotion).inverse())
+        future_egomotion_inv = mat2pose_vec(pose_vec2mat(future_egomotion).inverse())
 
     # Compute warped instance segmentation
     warped_instance_seg = {}
     for t in range(1, seq_len):
         # 将 t 时刻的 instance_img, 反变换回 t - 1时刻
-        warped_inst_t = warp_features(instance_img[t].unsqueeze(0).unsqueeze(1).float(),
-                                      future_egomotion_inv[t - 1].unsqueeze(0), mode='nearest',
-                                      spatial_extent=spatial_extent)
+        warped_inst_t = warp_features(
+            instance_img[t].unsqueeze(0).unsqueeze(1).float(),
+            future_egomotion_inv[t - 1].unsqueeze(0),
+            mode="nearest",
+            spatial_extent=spatial_extent,
+        )
         warped_instance_seg[t] = warped_inst_t[0, 0]
 
     # Ignore id 0 which is the background
@@ -41,7 +54,7 @@ def convert_instance_mask_to_center_and_offset_label(instance_img, future_egomot
         prev_yc = None
         prev_mask = None
         for t in range(seq_len):
-            instance_mask = (instance_img[t] == instance_id)
+            instance_mask = instance_img[t] == instance_id
             if instance_mask.sum() == 0:
                 # this instance is not in this frame
                 prev_xc = None
@@ -55,7 +68,7 @@ def convert_instance_mask_to_center_and_offset_label(instance_img, future_egomot
 
             off_x = xc - x
             off_y = yc - y
-            g = torch.exp(-(off_x ** 2 + off_y ** 2) / sigma ** 2)
+            g = torch.exp(-(off_x**2 + off_y**2) / sigma**2)
             center_label[t, 0] = torch.maximum(center_label[t, 0], g)
             offset_label[t, 0, instance_mask] = off_x[instance_mask]
             offset_label[t, 1, instance_mask] = off_y[instance_mask]
@@ -103,8 +116,11 @@ def convert_instance_mask_to_center_and_offset_label_with_warper(
     # future flow
     future_displacement_label = ignore_index * torch.ones(seq_len, 2, h, w)
     # x is vertical displacement, y is horizontal displacement
-    x, y = torch.meshgrid(torch.arange(h, dtype=torch.float),
-                          torch.arange(w, dtype=torch.float), indexing='ij')
+    x, y = torch.meshgrid(
+        torch.arange(h, dtype=torch.float),
+        torch.arange(w, dtype=torch.float),
+        indexing="ij",
+    )
 
     assert subtract_egomotion is True
     # [num_seq, 4, 4]
@@ -123,7 +139,7 @@ def convert_instance_mask_to_center_and_offset_label_with_warper(
         warped_inst_t = warper.warp_features(
             instance_img[t].unsqueeze(0).unsqueeze(1).float(),
             warp_flow[t - 1].unsqueeze(0),
-            mode='nearest',
+            mode="nearest",
         )
         warped_instance_seg[t] = warped_inst_t[0, 0]
 
@@ -133,7 +149,7 @@ def convert_instance_mask_to_center_and_offset_label_with_warper(
         prev_yc = None
         prev_mask = None
         for t in range(seq_len):
-            instance_mask = (instance_img[t] == instance_id)
+            instance_mask = instance_img[t] == instance_id
             if instance_mask.sum() == 0:
                 # this instance is not in this frame
                 prev_xc = None
@@ -147,7 +163,7 @@ def convert_instance_mask_to_center_and_offset_label_with_warper(
 
             off_x = xc - x
             off_y = yc - y
-            g = torch.exp(-(off_x ** 2 + off_y ** 2) / sigma ** 2)
+            g = torch.exp(-(off_x**2 + off_y**2) / sigma**2)
             center_label[t, 0] = torch.maximum(center_label[t, 0], g)
             offset_label[t, 0, instance_mask] = off_x[instance_mask]
             offset_label[t, 1, instance_mask] = off_y[instance_mask]
@@ -170,10 +186,15 @@ def convert_instance_mask_to_center_and_offset_label_with_warper(
     return center_label, offset_label, future_displacement_label
 
 
-def find_instance_centers(center_prediction: torch.Tensor, conf_threshold: float = 0.1, nms_kernel_size: float = 3):
+def find_instance_centers(
+    center_prediction: torch.Tensor,
+    conf_threshold: float = 0.1,
+    nms_kernel_size: float = 3,
+):
     assert len(center_prediction.shape) == 3
     center_prediction = F.threshold(
-        center_prediction, threshold=conf_threshold, value=-1)
+        center_prediction, threshold=conf_threshold, value=-1
+    )
 
     nms_padding = (nms_kernel_size - 1) // 2
     maxpooled_center_prediction = F.max_pool2d(
@@ -185,23 +206,28 @@ def find_instance_centers(center_prediction: torch.Tensor, conf_threshold: float
     return torch.nonzero(center_prediction > 0)[:, 1:]
 
 
-def group_pixels(centers: torch.Tensor, offset_predictions: torch.Tensor) -> torch.Tensor:
+def group_pixels(
+    centers: torch.Tensor, offset_predictions: torch.Tensor
+) -> torch.Tensor:
     width, height = offset_predictions.shape[-2:]
     x_grid = (
-        torch.arange(width, dtype=offset_predictions.dtype,
-                     device=offset_predictions.device)
+        torch.arange(
+            width, dtype=offset_predictions.dtype, device=offset_predictions.device
+        )
         .view(1, width, 1)
         .repeat(1, 1, height)
     )
     y_grid = (
-        torch.arange(height, dtype=offset_predictions.dtype,
-                     device=offset_predictions.device)
+        torch.arange(
+            height, dtype=offset_predictions.dtype, device=offset_predictions.device
+        )
         .view(1, 1, height)
         .repeat(1, width, 1)
     )
     pixel_grid = torch.cat((x_grid, y_grid), dim=0)
-    center_locations = (pixel_grid + offset_predictions).view(2,
-                                                              width * height, 1).permute(2, 1, 0)
+    center_locations = (
+        (pixel_grid + offset_predictions).view(2, width * height, 1).permute(2, 1, 0)
+    )
     centers = centers.view(-1, 1, 2)
 
     distances = torch.norm(centers - center_locations, dim=-1)
@@ -224,10 +250,16 @@ def get_instance_segmentation_and_centers(
     foreground_mask = foreground_mask.view(1, width, height)
 
     centers = find_instance_centers(
-        center_predictions, conf_threshold=conf_threshold, nms_kernel_size=nms_kernel_size)
+        center_predictions,
+        conf_threshold=conf_threshold,
+        nms_kernel_size=nms_kernel_size,
+    )
     if not len(centers):
-        return torch.zeros(center_predictions.shape, dtype=torch.int64, device=center_predictions.device), \
-            torch.zeros((0, 2), device=centers.device)
+        return torch.zeros(
+            center_predictions.shape,
+            dtype=torch.int64,
+            device=center_predictions.device,
+        ), torch.zeros((0, 2), device=centers.device)
 
     if len(centers) > max_n_instance_centers:
         # print(f'There are a lot of detected instance centers: {centers.shape}')
@@ -269,7 +301,9 @@ def make_instance_seg_consecutive(instance_seg):
     return instance_seg
 
 
-def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_threshold=3.0):
+def make_instance_id_temporally_consistent(
+    pred_inst, future_flow, matching_threshold=3.0
+):
     """
     Parameters
     ----------
@@ -287,7 +321,7 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
         Make the labels at t+1 consistent with the matching
     4. Repeat
     """
-    assert pred_inst.shape[0] == 1, 'Assumes batch size = 1'
+    assert pred_inst.shape[0] == 1, "Assumes batch size = 1"
 
     # Initialise instance segmentations with prediction corresponding to the present
     consistent_instance_seg = [pred_inst[0, 0]]
@@ -297,17 +331,19 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
     device = pred_inst.device
     for t in range(seq_len - 1):
         # Compute predicted future instance means
-        grid = torch.stack(torch.meshgrid(
-            torch.arange(h, dtype=torch.float, device=device), torch.arange(
-                w, dtype=torch.float, device=device), indexing='ij',
-        ))
+        grid = torch.stack(
+            torch.meshgrid(
+                torch.arange(h, dtype=torch.float, device=device),
+                torch.arange(w, dtype=torch.float, device=device),
+                indexing="ij",
+            )
+        )
 
         # Add future flow
         grid = grid + future_flow[0, t]
         warped_centers = []
         # Go through all ids, except the background
-        t_instance_ids = torch.unique(
-            consistent_instance_seg[-1])[1:].cpu().numpy()
+        t_instance_ids = torch.unique(consistent_instance_seg[-1])[1:].cpu().numpy()
 
         if len(t_instance_ids) == 0:
             # No instance so nothing to update
@@ -315,16 +351,19 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
             continue
 
         for instance_id in t_instance_ids:
-            instance_mask = (consistent_instance_seg[-1] == instance_id)
+            instance_mask = consistent_instance_seg[-1] == instance_id
             warped_centers.append(grid[:, instance_mask].mean(dim=1))
         warped_centers = torch.stack(warped_centers)
 
         # Compute actual future instance means
         centers = []
-        grid = torch.stack(torch.meshgrid(
-            torch.arange(h, dtype=torch.float, device=device), torch.arange(
-                w, dtype=torch.float, device=device), indexing='ij',
-        ))
+        grid = torch.stack(
+            torch.meshgrid(
+                torch.arange(h, dtype=torch.float, device=device),
+                torch.arange(w, dtype=torch.float, device=device),
+                indexing="ij",
+            )
+        )
         n_instances = int(pred_inst[0, t + 1].max().item())
 
         if n_instances == 0:
@@ -333,13 +372,16 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
             continue
 
         for instance_id in range(1, n_instances + 1):
-            instance_mask = (pred_inst[0, t + 1] == instance_id)
+            instance_mask = pred_inst[0, t + 1] == instance_id
             centers.append(grid[:, instance_mask].mean(dim=1))
         centers = torch.stack(centers)
 
         # Compute distance matrix between warped centers and actual centers
-        distances = torch.norm(centers.unsqueeze(
-            0) - warped_centers.unsqueeze(1), dim=-1).cpu().numpy()
+        distances = (
+            torch.norm(centers.unsqueeze(0) - warped_centers.unsqueeze(1), dim=-1)
+            .cpu()
+            .numpy()
+        )
         # outputs (row, col) with row: index in frame t, col: index in frame t+1
         # the missing ids in col must be added (correspond to new instances)
         ids_t, ids_t_one = linear_sum_assignment(distances)
@@ -349,8 +391,7 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
         ids_t_one += 1
 
         # swap ids_t with real ids. as those ids correspond to the position in the distance matrix.
-        id_mapping = dict(
-            zip(np.arange(1, len(t_instance_ids) + 1), t_instance_ids))
+        id_mapping = dict(zip(np.arange(1, len(t_instance_ids) + 1), t_instance_ids))
         ids_t = np.vectorize(id_mapping.__getitem__, otypes=[np.int64])(ids_t)
 
         # Filter low quality match
@@ -358,8 +399,9 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
         ids_t_one = ids_t_one[matching_distances < matching_threshold]
 
         # Elements that are in t+1, but weren't matched
-        remaining_ids = set(torch.unique(
-            pred_inst[0, t + 1]).cpu().numpy()).difference(set(ids_t_one))
+        remaining_ids = set(torch.unique(pred_inst[0, t + 1]).cpu().numpy()).difference(
+            set(ids_t_one)
+        )
         # remove background
         remaining_ids.remove(0)
         #  Set remaining_ids to a new unique id
@@ -368,19 +410,28 @@ def make_instance_id_temporally_consistent(pred_inst, future_flow, matching_thre
             ids_t = np.append(ids_t, largest_instance_id)
             ids_t_one = np.append(ids_t_one, remaining_id)
 
-        consistent_instance_seg.append(update_instance_ids(
-            pred_inst[0, t + 1], old_ids=ids_t_one, new_ids=ids_t))
-
+        consistent_instance_seg.append(
+            update_instance_ids(pred_inst[0, t + 1], old_ids=ids_t_one, new_ids=ids_t)
+        )
+    # print(f"consistent_instance_seg {consistent_instance_seg.shape}")
     consistent_instance_seg = torch.stack(consistent_instance_seg).unsqueeze(0)
+    print(f"consistent_instance_seg {consistent_instance_seg.shape}")
     return consistent_instance_seg
 
 
 def predict_instance_segmentation_and_trajectories(
-    output, compute_matched_centers=False, make_consistent=True, vehicles_id=1,
+    output,
+    compute_matched_centers=False,
+    make_consistent=True,
+    vehicles_id=1,
 ):
-    preds = output['segmentation'].detach()
+    print("predict_instance_segmentation_and_trajectories")
+    preds = output["segmentation"].detach()
+    print(f"preds seg {preds.shape}")
     preds = torch.argmax(preds, dim=2, keepdims=True)
+    print(f"preds seg argmax {preds.shape}")
     foreground_masks = preds.squeeze(2) == vehicles_id
+    print(f"foreground_masksx {foreground_masks.shape}")
 
     batch_size, seq_len = preds.shape[:2]
     pred_inst = []
@@ -388,25 +439,26 @@ def predict_instance_segmentation_and_trajectories(
         pred_inst_batch = []
         for t in range(seq_len):
             pred_instance_t, _ = get_instance_segmentation_and_centers(
-                output['instance_center'][b, t].detach(),
-                output['instance_offset'][b, t].detach(),
-                foreground_masks[b, t].detach()
+                output["instance_center"][b, t].detach(),
+                output["instance_offset"][b, t].detach(),
+                foreground_masks[b, t].detach(),
             )
+            print(f"pred_instance_t {pred_instance_t.shape}, unbekannt {_.shape}")
             pred_inst_batch.append(pred_instance_t)
         pred_inst.append(torch.stack(pred_inst_batch, dim=0))
 
     pred_inst = torch.stack(pred_inst).squeeze(2)
 
     if make_consistent:
-        if 'instance_flow' not in output or output['instance_flow'] is None:
+        if "instance_flow" not in output or output["instance_flow"] is None:
             # print('Using zero flow because instance_future_output is None')
-            output['instance_flow'] = torch.zeros_like(
-                output['instance_offset'])
+            output["instance_flow"] = torch.zeros_like(output["instance_offset"])
         consistent_instance_seg = []
         for b in range(batch_size):
             consistent_instance_seg.append(
-                make_instance_id_temporally_consistent(pred_inst[b:b+1],
-                                                       output['instance_flow'][b:b+1].detach())
+                make_instance_id_temporally_consistent(
+                    pred_inst[b : b + 1], output["instance_flow"][b : b + 1].detach()
+                )
             )
         consistent_instance_seg = torch.cat(consistent_instance_seg, dim=0)
     else:
@@ -417,18 +469,23 @@ def predict_instance_segmentation_and_trajectories(
         # Generate trajectories
         matched_centers = {}
         _, seq_len, h, w = consistent_instance_seg.shape
-        grid = torch.stack(torch.meshgrid(
-            torch.arange(h, dtype=torch.float, device=preds.device),
-            torch.arange(w, dtype=torch.float, device=preds.device),
-            indexing='ij',
-        ))
+        grid = torch.stack(
+            torch.meshgrid(
+                torch.arange(h, dtype=torch.float, device=preds.device),
+                torch.arange(w, dtype=torch.float, device=preds.device),
+                indexing="ij",
+            )
+        )
 
-        for instance_id in torch.unique(consistent_instance_seg[0, 0])[1:].cpu().numpy():
+        for instance_id in (
+            torch.unique(consistent_instance_seg[0, 0])[1:].cpu().numpy()
+        ):
             for t in range(seq_len):
                 instance_mask = consistent_instance_seg[0, t] == instance_id
                 if instance_mask.sum() > 0:
-                    matched_centers[instance_id] = matched_centers.get(instance_id, []) + [
-                        grid[:, instance_mask].mean(dim=-1)]
+                    matched_centers[instance_id] = matched_centers.get(
+                        instance_id, []
+                    ) + [grid[:, instance_mask].mean(dim=-1)]
 
         for key, value in matched_centers.items():
             matched_centers[key] = torch.stack(value).cpu().numpy()[:, ::-1]

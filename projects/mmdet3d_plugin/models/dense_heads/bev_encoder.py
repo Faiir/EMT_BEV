@@ -49,9 +49,9 @@ class Up(nn.Module):
             )
 
     def forward(self, x1, x2):
-        print(f"UP BEVENC input x1 {x1.shape} , x2 {x2.shape}")
+        # print(f"UP BEVENC input x1 {x1.shape} , x2 {x2.shape}")
         x1 = self.up(x1)
-        print(f"UP BEVENC x1 {x1.shape} , x2 {x2.shape}")
+        # print(f"UP BEVENC x1 {x1.shape} , x2 {x2.shape}")
         x1 = torch.cat([x2, x1], dim=1)
         return self.conv(x1)
 
@@ -165,9 +165,9 @@ class BevEncode(nn.Module):
         # build neck
         self.bev_encoder_fpn_type = bev_encoder_fpn_type
         if self.bev_encoder_fpn_type == "lssfpn":
-            print(
-                f"up1: {num_channels[-1]}, {num_channels[-3]},  combined {num_channels[-1] + num_channels[-3]}, {numC_output * 2}"
-            )
+            # print(
+            #     f"up1: {num_channels[-1]}, {num_channels[-3]},  combined {num_channels[-1] + num_channels[-3]}, {numC_output * 2}"
+            # )
             self.up1 = Up(
                 num_channels[-1] + num_channels[-3],
                 numC_output * 2,

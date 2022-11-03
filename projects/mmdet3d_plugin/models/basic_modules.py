@@ -519,7 +519,7 @@ class PyramidSpatioTemporalPooling(nn.Module):
     def forward(self, *inputs):
         (x,) = inputs
         b, _, t, h, w = x.shape
-        self.logger.debug("PyramidSpatioTemporalPooling input ", x.shape)
+        self.logger.debug(f"PyramidSpatioTemporalPooling input { str(x.shape)}")
         # Do not include current tensor when concatenating
         out = []
         for f in self.features:
@@ -527,7 +527,9 @@ class PyramidSpatioTemporalPooling(nn.Module):
             # self.logger.debug("x_pool: ", x.shape)
 
             x_pool = f(x)[:, :, :-1].contiguous()
-            self.logger.debug("PyramidSpatioTemporalPooling x_pool1 ", x_pool.shape)
+            self.logger.debug(
+                f"PyramidSpatioTemporalPooling x_pool1 {str(x_pool.shape)}"
+            )
             c = x_pool.shape[1]
 
             x_pool = nn.functional.interpolate(
@@ -536,9 +538,13 @@ class PyramidSpatioTemporalPooling(nn.Module):
                 mode="bilinear",
                 align_corners=True,
             )
-            self.logger.debug("PyramidSpatioTemporalPooling x_pool2 ", x_pool.shape)
+            self.logger.debug(
+                f"PyramidSpatioTemporalPooling x_pool2  {str(x_pool.shape)}"
+            )
             x_pool = x_pool.view(b, c, t, h, w)
-            self.logger.debug("PyramidSpatioTemporalPooling x_pool3 ", x_pool.shape)
+            self.logger.debug(
+                f"PyramidSpatioTemporalPooling x_pool3 {str(x_pool.shape)}"
+            )
             out.append(x_pool)
         out = torch.cat(out, 1)
         return out
@@ -559,7 +565,7 @@ class TemporalBlock(nn.Module):
         self.half_channels = in_channels // 2
         self.out_channels = out_channels or self.in_channels
         self.kernels = [(2, 3, 3), (1, 3, 3)]
-
+        self.logger = logging.getLogger("timelogger")
         # Flag for spatio-temporal pyramid pooling
         self.use_pyramid_pooling = use_pyramid_pooling
 

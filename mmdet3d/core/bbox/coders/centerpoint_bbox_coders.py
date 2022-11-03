@@ -55,6 +55,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         Returns:
             torch.Tensor: Gathered feats.
         """
+        # print("_gather_feat Centerpoint BBoxcoders")
         dim = feats.size(2)
         inds = inds.unsqueeze(2).expand(inds.size(0), inds.size(1), dim)
         feats = feats.gather(1, inds)
@@ -79,6 +80,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
                 torch.Tensor: Selected y coord with the shape of [B, K].
                 torch.Tensor: Selected x coord with the shape of [B, K].
         """
+        # print("_topk Centerpoint BBoxcoders")
         batch, cat, height, width = scores.size()
 
         topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), K)
@@ -110,6 +112,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         Returns:
             torch.Tensor: Transposed and gathered feats.
         """
+        # print("_transpose_and_gather_feat Centerpoint BBoxcoders")
         feat = feat.permute(0, 2, 3, 1).contiguous()
         feat = feat.view(feat.size(0), -1, feat.size(3))
         feat = self._gather_feat(feat, ind)
@@ -139,6 +142,7 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         Returns:
             list[dict]: Decoded boxes.
         """
+        print("Decode Centerpoint BBoxcoders")
         batch, cat, _, _ = heat.size()
 
         torch.cuda.synchronize()

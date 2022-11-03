@@ -165,11 +165,13 @@ class MultiTaskHead(BaseModule):
 
     def inference(self, predictions, img_metas, rescale):
         res = {}
+        print("MTL Head Inf")
         # derive bounding boxes for detection head
         if self.task_enbale.get("3dod", False):
+            print("MTL Head Inf 3dod")
             res["bbox_list"] = self.task_decoders["3dod"].get_bboxes(
                 predictions["3dod"], img_metas=img_metas, rescale=rescale
-            )
+            )  # Has len 6 -< and attributes of: reg (2,200,200), height (1,200,200), dim ( (3,200,200)), rot(2,200,200), vel (2,200,200), heatmap (1,200,200)
 
             # convert predicted boxes in ego to LiDAR coordinates
             if self.using_ego:
@@ -188,6 +190,7 @@ class MultiTaskHead(BaseModule):
 
         # derive semantic maps for map head
         if self.task_enbale.get("map", False):
+            print("MTL Head Inf map")
             res["pred_semantic_indices"] = self.task_decoders[
                 "map"
             ].get_semantic_indices(
@@ -195,6 +198,7 @@ class MultiTaskHead(BaseModule):
             )
 
         if self.task_enbale.get("motion", False):
+            print("MTL Head Inf motion")
             seg_prediction, pred_consistent_instance_seg = self.task_decoders[
                 "motion"
             ].inference(
@@ -210,7 +214,7 @@ class MultiTaskHead(BaseModule):
     def forward_with_shared_features(self, bev_feats, targets=None):
         predictions = {}
         auxiliary_features = {}
-
+        print("MTL Head Inf motion")
         bev_feats = self.taskfeat_encoders["shared"]([bev_feats])
         self.logger.debug(
             f"MTL-HEAD forward_with_shared_features bev_feats: {str(bev_feats.shape)}"

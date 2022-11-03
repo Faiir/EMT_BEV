@@ -335,6 +335,7 @@ class BaseMotionHead(BaseTaskHead):
             .long()
             .contiguous()
         )
+        print(f"Seg labels shape: {segmentation_labels.shape}")
         labels["segmentation"] = segmentation_labels
         future_distribution_inputs.append(segmentation_labels)
 
@@ -350,7 +351,7 @@ class BaseMotionHead(BaseTaskHead):
             .contiguous()[:, :, 0]
         )
         labels["instance"] = gt_instance
-
+        print(f"gt_instance shape: {gt_instance.shape}")
         instance_center_labels = self.warper.cumulative_warp_features_reverse(
             instance_center_labels,
             future_egomotion[:, (self.receptive_field - 1) :],
@@ -358,7 +359,7 @@ class BaseMotionHead(BaseTaskHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["centerness"] = instance_center_labels
-
+        print(f"instance_center_labels shape: {instance_center_labels.shape}")
         instance_offset_labels = self.warper.cumulative_warp_features_reverse(
             instance_offset_labels,
             future_egomotion[:, (self.receptive_field - 1) :],
@@ -366,7 +367,7 @@ class BaseMotionHead(BaseTaskHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["offset"] = instance_offset_labels
-
+        print(f"instance_offset_labels shape: {instance_offset_labels.shape}")
         future_distribution_inputs.append(instance_center_labels)
         future_distribution_inputs.append(instance_offset_labels)
 
@@ -378,7 +379,7 @@ class BaseMotionHead(BaseTaskHead):
         ).contiguous()
         labels["flow"] = instance_flow_labels
         future_distribution_inputs.append(instance_flow_labels)
-
+        print(f"instance_flow_labels shape: {instance_flow_labels.shape}")
         if len(future_distribution_inputs) > 0:
             future_distribution_inputs = torch.cat(future_distribution_inputs, dim=2)
 
@@ -389,6 +390,7 @@ class BaseMotionHead(BaseTaskHead):
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
+        print("Loss base motion head")
         loss_dict = {}
 
         """
