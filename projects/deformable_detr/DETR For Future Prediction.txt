@@ -25,6 +25,9 @@ TODO #
     Output Heads 
     GetDeformableAttention from MMCV 
 
+    If autoregessive
+        Warp the hieracical features for generation 
+
 
 Semantic Segmentation 
 
