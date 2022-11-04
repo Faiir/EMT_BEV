@@ -31,7 +31,7 @@ except ImportError:
 
 
 class DETRsegm(nn.Module):
-    def __init__(self, detr, freeze_detr=False):
+    def __init__(self, detr, freeze_detr=False, mask_head=None):
         super().__init__()
         self.detr = detr
 
@@ -42,8 +42,13 @@ class DETRsegm(nn.Module):
         hidden_dim, nheads = detr.transformer.d_model, detr.transformer.nhead
         self.bbox_attention = MHAttentionMap(
             hidden_dim, hidden_dim, nheads, dropout=0)
-        self.mask_head = MaskHeadSmallConv(
-            hidden_dim + nheads, [1024, 512, 256], hidden_dim)
+        
+        if mask_head is None:
+            self.mask_head = MaskHeadSmallConv(
+                hidden_dim + nheads, [1024, 512, 256], hidden_dim)
+        else:
+            self.mask_head = mask_head
+
 
     def forward(self, samples: NestedTensor):
         if not isinstance(samples, NestedTensor):
@@ -215,7 +220,7 @@ class MaskHeadSmallConv(nn.Module):
     Upsampling is done using a FPN approach
     """
 
-    def __init__(self, dim, fpn_dims, context_dim):
+    def __init__(self, dim, fpn_dims, context_dim, output_convs):
         super().__init__()
 
         inter_dims = [dim, context_dim // 2, context_dim // 4,
@@ -291,6 +296,9 @@ class MaskHeadSmallConv(nn.Module):
         print(f"Out MHead SegConv Shape {x.shape = }")
         return x
 
+
+def build_mask_head(dim, fpn_dims, context_dim):
+    return MaskHeadSmallConv(dim, fpn_dims,context_dim, output_convs)
 
 class MHAttentionMap(nn.Module):
     """This is a 2D attention module, which only returns the attention softmax (no multiplication by value)"""
