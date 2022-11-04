@@ -1,25 +1,7 @@
 DETR For Future Prediction
 
 
-tensor_list: NestedTensor -> inputs, mask_list
-samples: NestedTensor -> inputs, mask_list
-tensor_list.tensors -> inputs 
-backbone(samples) ->  inputs, mask_list
-
-NestedTensor(src, mask) -> 
-
-NestedTensor Reformatting:
-    BackboneBase 
-        Forward -> every time  backbone is called both have to be passed ---
-    Joiner Forward 
-    DeformDETR > Forward 
-    DeformDETRSeg Forward 
-    Pos Embedding Both 
-        Forward  - Feats & Mask 
-        Forward  - Feats & Mask 
-
-
-Backbone Check where impact and what output: 
+Backbone Check where impact and what output: ----
 
 Relevant how features are transformed 
 
@@ -41,7 +23,7 @@ Relevant hyper parameter:
 TODO #
     Temporal Object Queries  -> https://github.com/megvii-research/MOTR/blob/main/models/qim.py
     Output Heads 
-
+    GetDeformableAttention from MMCV 
 
 
 Semantic Segmentation 
