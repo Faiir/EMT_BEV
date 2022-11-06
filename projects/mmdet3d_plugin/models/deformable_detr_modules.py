@@ -632,9 +632,10 @@ class Joiner(nn.Sequential):
 
 def build_backbone(args):
     position_embedding = build_position_encoding(args)
-    train_backbone = args.lr_backbone > 0
+    train_backbone = True #args.lr_backbone > 0
     # return_interm_layers = args.masks or (args.num_feature_levels > 1)
-    return_interm_layers = args.num_feature_levels > 1
+    return_interm_layers = True #args.num_feature_levels > 1
+    dilation= [False,False,False,False]
     backbone = Backbone(args.backbone, train_backbone,
                         return_interm_layers, args.dilation)
     model = Joiner(backbone, position_embedding)
@@ -1053,30 +1054,36 @@ def _get_activation_fn(activation):
     raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
 
 
-def build_deforamble_transformer(args):
+def build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers, 
+                                 dim_feedforward, dropout_transformer, activation,
+                                 num_feature_levels, dec_n_points, enc_n_points,
+                                 num_queries):
     return DeformableTransformer(
-        d_model=args.hidden_dim,
-        nhead=args.nheads,
-        num_encoder_layers=args.enc_layers,
-        num_decoder_layers=args.dec_layers,
-        dim_feedforward=args.dim_feedforward,
-        dropout=args.dropout,
-        activation=args.activation,
+        d_model=hidden_dim,
+        nhead=nheads,
+        num_encoder_layers=enc_layers,
+        num_decoder_layers=dec_layers,
+        dim_feedforward=dim_feedforward,
+        dropout=dropout_transformer,
+        activation=activation,
         return_intermediate_dec=True,
-        num_feature_levels=args.num_feature_levels,
-        dec_n_points=args.dec_n_points,
-        enc_n_points=args.enc_n_points,
-        two_stage=args.two_stage,
-        two_stage_num_proposals=args.num_queries)
+        num_feature_levels=num_feature_levels,
+        dec_n_points=dec_n_points,
+        enc_n_points=enc_n_points,
+        two_stage=False,
+        two_stage_num_proposals=num_queries)
 
 
-try:
-    from panopticapi.utils import id2rgb, rgb2id
-except ImportError:
-    pass
+# try:
+#     from panopticapi.utils import id2rgb, rgb2id
+# except ImportError:
+#     pass
 
 
 small_resnet = False
+
+def build_MaskHeadSmallConv(hidden_dim,nheads,fpns, output_convs):
+    return MaskHeadSmallConv(hidden_dim+nheads, fpns, hidden_dim, output_convs)
 
 
 class DETRsegm(nn.Module):
@@ -1291,7 +1298,7 @@ class MaskHeadSmallConv(nn.Module):
     Upsampling is done using a FPN approach
     """
 
-    def __init__(self, dim, fpn_dims, context_dim):
+    def __init__(self, dim, fpn_dims, context_dim, output_convs=None):
         super().__init__()
 
         inter_dims = [dim, context_dim // 2, context_dim // 4,
@@ -1646,8 +1653,8 @@ class PostProcessPanoptic(nn.Module):
 
                 final_h, final_w = to_tuple(target_size)
 
-                seg_img = Image.fromarray(
-                    id2rgb(m_id.view(h, w).cpu().numpy()))
+                # seg_img = Image.fromarray(
+                #     id2rgb(m_id.view(h, w).cpu().numpy()))
                 seg_img = seg_img.resize(
                     size=(final_w, final_h), resample=Image.NEAREST)
 
@@ -1655,7 +1662,7 @@ class PostProcessPanoptic(nn.Module):
                     torch.ByteTensor(torch.ByteStorage.from_buffer(
                         seg_img.tobytes())).view(final_h, final_w, 3).numpy()
                 )
-                m_id = torch.from_numpy(rgb2id(np_seg_img))
+                # m_id = torch.from_numpy(rgb2id(np_seg_img))
 
                 area = []
                 for i in range(len(scores)):
@@ -2177,9 +2184,9 @@ def build_detr(backbone , transformer,num_classes, args):
         num_classes=num_classes,
         num_queries=args.num_queries,
         num_feature_levels=args.num_feature_levels,
-        aux_loss=args.aux_loss,
-        with_box_refine=args.with_box_refine,
-        two_stage=args.two_stage,
+        aux_loss=False,#args.aux_loss,
+        with_box_refine=False,  # args.with_box_refine,
+        two_stage=False,  # args.two_stage,
     )
 
 def build(args):

@@ -20,10 +20,13 @@ from ...datasets.utils.warper import FeatureWarper
 from ...visualize import Visualizer
 from ._base_motion_head import BaseMotionHead
 
-from ..deformable_detr_modules import build_backbone, build_seg_detr, build_deforamble_transformer, build_position_encoding
+from ..deformable_detr_modules import build_MaskHeadSmallConv,build_detr,build_backbone, build_seg_detr, build_deforamble_transformer, build_position_encoding
 from mmcv.runner import auto_fp16, force_fp32
 from torch.profiler import record_function
 import pdb
+
+
+def build_output_convs(output_dict={1,2,2,})
 
 
 @HEADS.register_module()
@@ -57,9 +60,21 @@ class Motion_DETR(BaseMotionHead):
         self.receptive_field = receptive_field
         self.n_future = n_future
         
-        self.backbone = build_backbone(DETR_ARGS)
-        self.transformer = build_deforamble_transformer(DETR_ARGS)
+        self.backbone = build_backbone(backbone=backbone, layers=[
+                                       2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats)
         
+        
+        self.future_heads = build_output_convs()
+        self.mask_conv = build_MaskHeadSmallConv(hidden_dim=hidden_dim,nheads=nheads,fpns=fpns)
+        self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
+                                                        dim_feedforward, dropout_transformer, activation,
+                                                        num_feature_levels, dec_n_points, enc_n_points,
+                                                        num_queries)
+        
+        self.DETR = build_detr(
+            self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
+        self.DETR_SEG = build_seg_detr(
+            self.DETR, mall_resnet=small_resnet, output_convs=output_convs)
         # loss functions
         # 1. loss for foreground segmentation
         self.seg_criterion = MotionSegmentationLoss(
@@ -203,9 +218,7 @@ class Motion_DETR(BaseMotionHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["offset"] = instance_offset_labels
-        print(f"instance_offset_labels shape: {instance_offset_labels.shape}")
-        future_distribution_inputs.append(instance_center_labels)
-        future_distribution_inputs.append(instance_offset_labels)
+
 
         instance_flow_labels = self.warper.cumulative_warp_features_reverse(
             instance_flow_labels,
@@ -214,15 +227,13 @@ class Motion_DETR(BaseMotionHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["flow"] = instance_flow_labels
-        future_distribution_inputs.append(instance_flow_labels)
+        
         print(f"instance_flow_labels shape: {instance_flow_labels.shape}")
-        if len(future_distribution_inputs) > 0:
-            future_distribution_inputs = torch.cat(future_distribution_inputs, dim=2)
 
         # self.visualizer.visualize_motion(labels=labels)
         # pdb.set_trace()
 
-        return labels, future_distribution_inputs
+        return labels
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):

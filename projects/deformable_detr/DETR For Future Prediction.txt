@@ -20,13 +20,132 @@ Relevant hyper parameter:
     input size 
 
 
+Integration plan DETR > BEVerse 
+    1. Builder Functions for the different parts 
+    2. Builder for output heads 
+    3. Get the output sizes
+    4. 3D object detection based on DETR 
+    5. as small as possible 
+
+
+Deformable DETR [58] associates the object queries with 2D reference points and proposes deformable cross-attention to perform sparse interaction
+
+
+Args:
+    Coder _> NMSFreeCoder 
+    
+    DeformableDETR 
+        query_decoder -> output muss 10 haben 
+        num_queries 
+        transformer
+            hidden 
+            heads 
+            num_encoder_layers
+            num_decoder_layers
+            fim_feedforward
+            dropout 
+            activation 
+            return_intermediate_dec
+            num_feature_levels
+            dec_n_points 
+            enc_n_points
+        hidden_dim (transformer)
+        num_classes 
+        past_query_embed
+        tqa
+        num_feature_levels
+        backbone
+
+        forward: 
+            inputs, mask_inputs  -> (GridMask?)
+
+
+    DeformableDETRSegm 
+        MaskHeadSmallConv 
+            Dim 
+            fpn_dims 
+            contrext_dim 
+
+    PositionEmbeddingSine:
+        num_pos_feats
+        temperature
+        normalize 
+        scale 
+
+        forward;
+            inputs, masks 
+
+        learned:
+            num_pos_feats 
+
+    Assigner
+        HungarianAssigner3D ? 
+        HungarianMatcher  ? <- ORNG
+
+
+    Backbone:
+        resnet18 
+            layers=[2,2,2,2]
+
+        return_interm_layers 
+
+        build_backbone(
+            build_position_encoding(position_embedding="sine" / "learned")
+            return_feature_layers
+            backbone("resnet18", )
+        )
+
+    Joiner 
+
+
 TODO #
     Temporal Object Queries  -> https://github.com/megvii-research/MOTR/blob/main/models/qim.py
     Output Heads 
     GetDeformableAttention from MMCV 
 
+    Need for transformation from BEV -> 3D? 
+        Reference Points PETR 3 -> 3D coordiantes Deformable DETR only 2 -> could lead to issues 
+
+    PETR
+        3D Anchor Points in Multiview space best performance 
+        tried BEV space, yielded worse performance 
+
     If autoregessive
         Warp the hieracical features for generation 
+
+
+PETR_HEAD FORWARD Input: x.shape =torch.Size([1, 6, 256, 32, 88])
+PETR_HEAD FORWARD Input Proj: x.shape =torch.Size([6, 256, 32, 88])
+PETR_HEAD FORWARD Mask: torch.Size([1, 6, 32, 88])
+PETR_HEAD FORWARD posembed: torch.Size([1, 6, 256, 32, 88])
+POS SINE: pos_n.shape =torch.Size([1, 6, 32, 88, 128]) pos_x.shape =torch.Size([1, 6, 32, 88, 128]) pos_y.shape =torch.Size([1, 6, 32, 88, 128]), pos.shape =torch.Size([1, 6, 384, 32, 88])  mask.shape =torch.Size([1, 6, 32, 88])
+PETR_HEAD FORWARD reference_points: torch.Size([900, 3])
+pos2posemb3d input:  torch.Size([900, 3])
+pos_x.shape = torch.Size([900, 128]), pos_y.shape = torch.Size([900, 128]), pos_z.shape = torch.Size([900, 128]), posemb.shape = torch.Size([900, 384])
+PETR_HEAD FORWARD query_embeds: torch.Size([900, 256])
+PETR_HEAD FORWARD reference_points: torch.Size([1, 900, 3])
+memory.shape = torch.Size([16896, 1, 256])
+pos_embed.shape = torch.Size([16896, 1, 256])
+query_embed.shape = torch.Size([900, 1, 256])
+mask.shape = torch.Size([1, 16896])
+target.shape = torch.Size([900, 1, 256])
+out_dec.shape = torch.Size([1, 900, 1, 256])
+out: out_dec.shape = torch.Size([1, 1, 900, 256]) memory.shape = torch.Size([1, 6, 256, 32, 88])
+PETR_HEAD FORWARD outs_dec: torch.Size([1, 1, 900, 256])
+PETR_HEAD FORWARD reference: torch.Size([1, 900, 3])
+PETR_HEAD FORWARD outputs_class: torch.Size([1, 900, 10])
+PETR_HEAD FORWARD outs_dec: torch.Size([1, 900, 256])
+PETR_HEAD FORWARD tmp: torch.Size([1, 900, 10])
+PETR_HEAD FORWARD tmp ref: torch.Size([1, 900, 2]), torch.Size([1, 900, 2])
+PETR_HEAD FORWARD tmp ref: torch.Size([1, 900, 1]) , torch.Size([1, 900, 1])
+PETR_HEAD FORWARD tmptmp: torch.Size([1, 900, 10])
+PETR_HEAD FORWARD all_cls_scores: torch.Size([1, 1, 900, 10])
+PETR_HEAD FORWARD all_bbox_preds: torch.Size([1, 1, 900, 10])
+PETR_HEAD FORWARD all_bbox_preds: torch.Size([1, 1, 900, 10])
+NMS_FREE DECODE SINGLE bbox_preds torch.Size([300, 10])
+NMS_FREE DECODE SINGLE FINAL BOX PREDStorch.Size([300, 9])
+NMS_FREE DECODE SINGLE MASK torch.Size([300])
+NMS_FREE DECODE SINGLE boxes3d torch.Size([300, 9])
 
 
 Semantic Segmentation 
