@@ -17,7 +17,7 @@ model = dict(
         with_skip_connect=True,
     ),
     pts_bbox_head=dict(
-        task_enbale={
+        task_enable={
             "3dod": True,
             "map": True,
             "motion": True,

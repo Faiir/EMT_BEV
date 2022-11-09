@@ -9,8 +9,13 @@ from mmdet3d.models.builder import HEADS, build_loss
 from .bev_encoder import BevEncode
 from .map_head import BevFeatureSlicer
 from mmcv.runner import auto_fp16, force_fp32
-
+from ..deformable_detr_modules import MHAttentionMap, MaskHeadSmallConv, build_MaskHeadSmallConv, build_detr, build_backbone, build_seg_detr, build_deforamble_transformer, build_position_encoding
+from ..deformable_detr_utils import inverse_sigmoid
 import pdb
+from ...datasets.utils.geometry import cumulative_warp_features_reverse
+from ...datasets.utils.instance import predict_instance_segmentation_and_trajectories
+from ...datasets.utils.warper import FeatureWarper
+from ..motion_modules import warp_with_flow
 
 
 @HEADS.register_module()
@@ -39,6 +44,16 @@ class MultiTaskHead(BaseModule):
         cfg_3dod=None,
         cfg_map=None,
         cfg_motion=None,
+        #DETR ARGS HERE
+        backbone="resnet18",
+        position_embedding="sine",
+        num_pos_feats=128,
+        #in_channels=64,
+                 hidden_dim=512, nheads=8, enc_layers=6, dec_layers=6, dim_feedforward=512, dropout_transformer=0.1, activation="relu",
+        num_feature_levels=4, dec_n_points=6, enc_n_points=6, num_queries=150,
+
+        #DETR END  ARGS HERE
+
         train_cfg=None,
         test_cfg=None,
         **kwargs,
@@ -99,7 +114,8 @@ class MultiTaskHead(BaseModule):
             cfg_3dod.update(train_cfg=train_cfg)
             cfg_3dod.update(test_cfg=test_cfg)
 
-            self.task_feat_cropper["3dod"] = BevFeatureSlicer(grid_conf, det_grid_conf)
+            self.task_feat_cropper["3dod"] = BevFeatureSlicer(
+                grid_conf, det_grid_conf)
             self.task_decoders["3dod"] = builder.build_head(cfg_3dod)
 
         # static map
@@ -107,7 +123,8 @@ class MultiTaskHead(BaseModule):
             cfg_map.update(train_cfg=train_cfg)
             cfg_map.update(test_cfg=test_cfg)
 
-            self.task_feat_cropper["map"] = BevFeatureSlicer(grid_conf, map_grid_conf)
+            self.task_feat_cropper["map"] = BevFeatureSlicer(
+                grid_conf, map_grid_conf)
             self.task_decoders["map"] = builder.build_head(cfg_map)
 
         # motion_head
@@ -122,6 +139,67 @@ class MultiTaskHead(BaseModule):
         print("TASK DECODERS")
         print(self.task_decoders)
         print("---------"*12)
+        self.hidden_dim = hidden_dim
+        self.num_feature_levels = num_feature_levels
+        self.num_queries = num_queries
+        
+        self.backbone = build_backbone(backbone=backbone, layers=[
+                   2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats)
+
+
+        self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
+                                                        dim_feedforward, dropout_transformer, activation,
+                                                        num_feature_levels, dec_n_points, enc_n_points,
+                                                        num_queries)
+        self.DETR = build_detr(
+            self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
+        
+        self.temporal_queries_activated = temporal_queries_activated 
+        self.flow_warp = flow_warp
+        
+    def _init_detr_layers(self):
+        if self.temporal_queries_activated:
+            self.temporal_query_projection = nn.Sequential(
+                nn.Linear(num_queries, out_features=num_queries),
+                nn.Dropout(p=0.1),
+                nn.ReLU(),
+            )
+        num_backbone_outs = len(self.backbone.strides)
+        input_proj_list = []
+        for _ in range(num_backbone_outs):
+            in_channels = self.backbone.num_channels[_]
+            input_proj_list.append(nn.Sequential(
+                nn.Conv2d(in_channels, self.hidden_dim, kernel_size=1),
+                nn.GroupNorm(32, self.hidden_dim),
+            ))
+        for _ in range(self.num_feature_levels - num_backbone_outs):
+            input_proj_list.append(nn.Sequential(
+                nn.Conv2d(in_channels, self.hidden_dim,
+                            kernel_size=3, stride=2, padding=1),
+                nn.GroupNorm(32, self.hidden_dim),
+            ))
+            in_channels = self.hidden_dim
+        self.input_proj = nn.ModuleList(input_proj_list)
+        
+        if self.flow_warp:
+            self.offset_conv = nn.Sequential(
+                nn.Conv2d(
+                    in_channels, in_channels, kernel_size=3, padding=1
+                ),
+                nn.BatchNorm2d(in_channels),
+                nn.ReLU(),
+            )
+            self.offset_pred = nn.Conv2d(
+                in_channels, 2, kernel_size=1, padding=0
+            )
+         
+    
+    def _initialize_layers(self):
+        for proj in self.input_proj:
+            nn.init.xavier_uniform_(proj[0].weight, gain=1)
+            nn.init.constant_(proj[0].bias, 0)
+
+
     def scale_task_losses(self, task_name, task_loss_dict):
         task_sum = 0
         for key, val in task_loss_dict.items():
@@ -143,7 +221,8 @@ class MultiTaskHead(BaseModule):
                 preds_dicts=predictions["3dod"],
             )
             loss_dict.update(
-                self.scale_task_losses(task_name="3dod", task_loss_dict=det_loss_dict)
+                self.scale_task_losses(
+                    task_name="3dod", task_loss_dict=det_loss_dict)
             )
 
         if self.task_enable.get("map", False):
@@ -152,11 +231,13 @@ class MultiTaskHead(BaseModule):
                 targets,
             )
             loss_dict.update(
-                self.scale_task_losses(task_name="map", task_loss_dict=map_loss_dict)
+                self.scale_task_losses(
+                    task_name="map", task_loss_dict=map_loss_dict)
             )
 
         if self.task_enable.get("motion", False):
-            motion_loss_dict = self.task_decoders["motion"].loss(predictions["motion"])
+            motion_loss_dict = self.task_decoders["motion"].loss(
+                predictions["motion"])
             loss_dict.update(
                 self.scale_task_losses(
                     task_name="motion", task_loss_dict=motion_loss_dict
@@ -229,7 +310,8 @@ class MultiTaskHead(BaseModule):
             )
             # task-specific decoder
             if task_name == "motion":
-                task_pred = self.task_decoders[task_name]([task_feat], targets=targets)
+                task_pred = self.task_decoders[task_name](
+                    [task_feat], targets=targets)
             else:
                 task_pred = self.task_decoders[task_name]([task_feat])
 
@@ -242,26 +324,77 @@ class MultiTaskHead(BaseModule):
             return self.forward_with_shared_features(bev_feats, targets)
 
         predictions = {}
-        for task_name, task_feat_encoder in self.taskfeat_encoders.items():
+        #for task_name, task_feat_encoder in self.taskfeat_encoders.items():
 
-            # crop feature before the encoder
-            task_feat = self.task_feat_cropper[task_name](bev_feats)
-            self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
-            # task-specific feature encoder
-            task_feat = task_feat_encoder([task_feat])
-            self.logger.debug(f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
-            # task-specific decoder
-            if task_name == "motion":
-                task_pred = self.task_decoders[task_name]([task_feat], targets=targets)
-                # self.logger.debug(
-                #     f"MTL-HEAD forward task_pred motion: {str(task_pred.shape)}"
-                # )
-            else:
-                task_pred = self.task_decoders[task_name]([task_feat])
-                # self.logger.debug(
-                #     f"MTL-HEAD forward task_pred motion: {str(task_pred.shape)}"
-                # )
+        # crop feature before the encoder
+        task_feat = self.task_feat_cropper["map"](bev_feats)
+        self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
+        # task-specific feature encoder
+        task_feat = self.taskfeat_encoders["map"]([task_feat])
+        map_pred = self.task_decoders["map"]([task_feat])
+        
+        
+        
+        
+        self.logger.debug(
+            f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
+        
+        task_feat = self.taskfeat_encoders["3dod"]([task_feat])
+        b,c,h,w = task_feat.shape
+        task_mask = mask = torch.ones(
+            (b, h, w), dtype=torch.bool, device=task_feat.device)
+        features, pos = self.backbone(task_feat, task_mask)
+        
+        srcs = []
+        masks = []
+        for l, feat in enumerate(features):
+            src, mask = feat
+            srcs.append(self.input_proj[l](src))
+            masks.append(mask)
+            assert mask is not None
+        if self.num_feature_levels > len(srcs):
+            _len_srcs = len(srcs)
+            for l in range(_len_srcs, self.num_feature_levels):
+                if l == _len_srcs:
+                    src = self.input_proj[l](features[-1][0])  # .tensors)
+                else:
+                    src = self.input_proj[l](srcs[-1])
+                m = task_mask
+                mask = F.interpolate(
+                    m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
+                pos_l = self.backbone[1](src, mask).to(src.dtype)
+                srcs.append(src)
+                masks.append(mask)
+                pos.append(pos_l)
 
-            predictions[task_name] = task_pred
+        query_embeds = None
+        if not self.two_stage:
+            query_embeds = self.query_embed.weight
+            if self.temporal_queries_activated:
+                if self.past_query_embed is None:
+                    self.past_query_embed = self.temporal_query_projection(
+                        query_embeds)
+                print(f"{self.past_query_embed.shape = }")
+                query_embeds += self.past_query_embed
+        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
+            srcs, masks, pos, query_embeds)
+        
+        #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
+        dod_pred = self.task_decoders["3dod"](
+                hs,init_reference)
 
+        warped_bev_feats = [task_feat]
+        if self.flow_warp:
+            for _ in range(self.n_future):
+                flow = self.offset_pred(self.offset_conv(task_feat))
+                warp_state = warp_with_flow(task_feat, flow=flow)
+                warped_bev_feats.append(warp_state)
+        motion_pred = self.task_decoders["motion"](
+            hs, init_reference, seg_memory, seg_mask, warped_bev_feats)
+        
+        
+        predictions["map"] = map_pred
+        predictions["3dod"] = dod_pred
+        predictions["motion"] = motion_pred
+        
         return predictions

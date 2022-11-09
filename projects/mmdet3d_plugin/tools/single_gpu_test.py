@@ -66,7 +66,7 @@ def single_gpu_test(model,
     logging_interval = 50
 
     # whether each task is enabled
-    task_enable = model.module.pts_bbox_head.task_enbale
+    task_enable = model.module.pts_bbox_head.task_enable
     det_enable = task_enable.get('3dod', False)
     map_enable = task_enable.get('map', False)
     motion_enable = task_enable.get('motion', False)

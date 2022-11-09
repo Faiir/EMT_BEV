@@ -1,6 +1,7 @@
 _base_ = [
-    '../../../mmdetection3d/configs/_base_/datasets/nus-3d.py',
-    '../../../mmdetection3d/configs/_base_/default_runtime.py'
+    "../../../configs/_base_/datasets/nus-3d.py",
+    #"../../configs/_base_/schedules/cyclic_20e.py",
+    "../../../configs/_base_/default_runtime.py",
 ]
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
 plugin=True
@@ -45,10 +46,10 @@ model = dict(
         num_query=900,
         LID=True,
         with_position=True,
-        with_multiview=True,
+        with_multiview=False,
         with_fpe=True,
         with_time=True,
-        with_multi=True,
+        with_multi=False,
         position_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
         code_weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         transformer=dict(
@@ -108,13 +109,13 @@ model = dict(
             pc_range=point_cloud_range))))
 
 dataset_type = 'CustomNuScenesDataset'
-data_root = '/data/Dataset/nuScenes/'
+data_root = "data/nuscenes/"  # '/data/Dataset/nuScenes/'
 
 file_client_args = dict(backend='disk')
 
 db_sampler = dict(
     data_root=data_root,
-    info_path=data_root + 'nuscenes_dbinfos_train.pkl',
+    info_path=data_root + 'nuscenes_infos_train.pkl',
     rate=1.0,
     prepare=dict(
         filter_by_difficulty=[-1],
@@ -216,8 +217,9 @@ data = dict(
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
-    val=dict(type=dataset_type, pipeline=test_pipeline, ann_file=data_root + 'mmdet3d_nuscenes_30f_infos_val.pkl', classes=class_names, modality=input_modality),
-    test=dict(type=dataset_type, pipeline=test_pipeline, ann_file=data_root + 'mmdet3d_nuscenes_30f_infos_val.pkl', classes=class_names, modality=input_modality))
+    val=dict(type=dataset_type, pipeline=test_pipeline, ann_file=data_root + \
+             'nuscenes_infos_val.pkl', classes=class_names, modality=input_modality),
+    test=dict(type=dataset_type, pipeline=test_pipeline, ann_file=data_root + 'nuscenes_infos_val.pkl', classes=class_names, modality=input_modality))
 
 
 optimizer = dict(

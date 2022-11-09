@@ -53,7 +53,9 @@ class IterativeFlow(BaseMotionHead):
                 n_gru_blocks=n_gru_blocks,
                 flow_warp=flow_warp,
             )
-
+        print("TASK HEADS")
+        print(self.task_heads)
+        print("---------"*12)
     def forward(self, bevfeats, targets=None, noise=None):
         """
         the forward process of motion head:

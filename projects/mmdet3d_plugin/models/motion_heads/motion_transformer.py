@@ -16,27 +16,30 @@ from ..dense_heads.loss_utils import (
 from ...datasets.utils.geometry import cumulative_warp_features_reverse
 from ...datasets.utils.instance import predict_instance_segmentation_and_trajectories
 from ...datasets.utils.warper import FeatureWarper
-
+from ..motion_modules import warp_with_flow
 from ...visualize import Visualizer
 from ._base_motion_head import BaseMotionHead
 
-from ..deformable_detr_modules import build_MaskHeadSmallConv,build_detr,build_backbone, build_seg_detr, build_deforamble_transformer, build_position_encoding
+from ..deformable_detr_modules import MHAttentionMap, MaskHeadSmallConv, build_MaskHeadSmallConv, build_detr, build_backbone, build_seg_detr, build_deforamble_transformer, build_position_encoding
+from ..deformable_detr_utils import inverse_sigmoid
+
 from mmcv.runner import auto_fp16, force_fp32
 from torch.profiler import record_function
 import pdb
 
-
-def build_output_convs(output_dict={1,2,2,})
+from mmcv.runner import BaseModule
 
 
 @HEADS.register_module()
-class Motion_DETR(BaseMotionHead):
+class Motion_DETR(BaseModule):
     def __init__(self,DETR_ARGS ,
                  receptive_field=3,
                  n_future=0,
                  future_discount = 0.95,
                  grid_conf=None,
                 class_weights=None,
+                 flow_warp=True,
+                 hidden_dim=512, nheads=8,
                 use_topk=True,
                 topk_ratio=0.25,
                 ignore_index=255,
@@ -45,13 +48,11 @@ class Motion_DETR(BaseMotionHead):
                 using_focal_loss=False,
                 focal_cfg=dict(type="GaussianFocalLoss", reduction="none"),
                 loss_weights=None,
-                 #DETR ARGS HERE
-                 
-                 
-                 #DETR END  ARGS HERE
+
+                 task_dict=None,
                 train_cfg=None,
                 test_cfg=None,
-                init_cfg=None,
+                 init_cfg=dict(type="Kaiming", layer="Conv2d"),
                  **kwargs):
         super(Motion_DETR, self).__init__(**kwargs)
         self.logger = logging.getLogger("timelogger")
@@ -60,23 +61,50 @@ class Motion_DETR(BaseMotionHead):
         self.receptive_field = receptive_field
         self.n_future = n_future
         
-        self.backbone = build_backbone(backbone=backbone, layers=[
-                                       2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats)
+
+        self.task_heads = nn.ModuleDict()
         
         
-        self.future_heads = build_output_convs()
-        self.mask_conv = build_MaskHeadSmallConv(hidden_dim=hidden_dim,nheads=nheads,fpns=fpns)
-        self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
-                                                        dim_feedforward, dropout_transformer, activation,
-                                                        num_feature_levels, dec_n_points, enc_n_points,
-                                                        num_queries)
+        inter_channels = in_channels if inter_channels is None else inter_channels
+        for task_key, task_dim in task_dict.items():
+            self.task_heads[task_key] = nn.Sequential(
+                nn.Conv2d(
+                    in_channels, inter_channels, kernel_size=3, padding=1, bias=False
+                ),
+                nn.BatchNorm2d(inter_channels),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(inter_channels, task_dim, kernel_size=1, padding=0),
+            )
+
         
-        self.DETR = build_detr(
-            self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
-        self.DETR_SEG = build_seg_detr(
-            self.DETR, mall_resnet=small_resnet, output_convs=output_convs)
+        self.bbox_attention = MHAttentionMap(
+            hidden_dim, hidden_dim, nheads, dropout=0)
+
+        fpn_dims = [512, 256, 128, 64]
+
+        self.mask_conv = MaskHeadSmallConv(
+            hidden_dim+nheads, fpn_dims, hidden_dim)
+
+
+        # self.DETR_SEG = build_seg_detr(
+        #     self.DETR)
         # loss functions
         # 1. loss for foreground segmentation
+        in_channels = 64 
+        if flow_warp:
+            self.flow_warp = flow_warp 
+            self.offset_conv = nn.Sequential(
+                nn.Conv2d(
+                    in_channels, in_channels, kernel_size=3, padding=1
+                ),
+                nn.BatchNorm2d(in_channels),
+                nn.ReLU(),
+            )
+            self.offset_pred = nn.Conv2d(
+                in_channels, 2, kernel_size=1, padding=0
+            )
+
+        
         self.seg_criterion = MotionSegmentationLoss(
             class_weights=torch.tensor(),
             use_top_k=use_topk,
@@ -123,41 +151,59 @@ class Motion_DETR(BaseMotionHead):
         self.warper = FeatureWarper(grid_conf=grid_conf)
     
 
+        self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
-        
-    def forward(self, bevfeats, targets=None, noise=None):
+    def forward(self,  hs, reference, seg_memory, seg_mask, warped_bev_feats, targets=None, noise=None):
         """
         the forward process of motion head:
         1. get present & future distributions
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
-        bevfeats = bevfeats[0]
-        bev_mask = None #TODO
+        bs = hs.shape[0]
+        mask_preds = []
+        for warped_bev_feat in warped_bev_feats:
+
+            bbox_mask = self.bbox_attention(hs[-1], seg_memory, mask=seg_mask)
+
+            input_projections = [(warped_bev_feat[-1][0]),
+                                 (warped_bev_feat[-2][0]), (warped_bev_feat[-3][0]), warped_bev_feat[-4][0]]
+            # feature pyramid stuff <-- this is where the shapes are relevant
+            seg_masks = self.mask_head(
+                warped_bev_feat[-1], bbox_mask, input_projections)
+            outputs_seg_masks = seg_masks.view(
+                bs, self.num_queries, seg_masks.shape[-2], seg_masks.shape[-1])
+            # TODO OUTPUT HEAD WITH 1v1 Conv and channels 
+            # TODO Check the post processing again
+            mask_preds.append(outputs_seg_masks)
 
 
-        res = {}
-        if self.n_future > 0:
-            with record_function("Motion Prediction distribution forward"):
+        #     batch, seq = outputs_seg_masks.shape[:2]
+        #     flatten_states = warp_state.flatten(0, 1)
+        #     res = {}
+        #     bev_feats = warp_state
+        #     bev_mask = torch.ones(
+        #         (b, h, w), dtype=torch.bool, device=bevfeats.device)
+        # if self.n_future > 0:
+        #     with record_function("Motion Prediction distribution forward"):
+        #         for task_key, task_head in self.task_heads.items():
+        #             res[task_key] = task_head(
+        #                 flatten_states).view(batch, seq, -1, h, w)
+        # else:
+        #     b, _, h, w = bevfeats.shape
+        #     for task_key, task_head in self.task_heads.items():
+        #         res[task_key] = task_head(bevfeats).view(b, 1, -1, h, w)
 
-                
-
-
-                for task_key, task_head in self.task_heads.items():
-                    res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
-        else:
-            b, _, h, w = bevfeats.shape
-            for task_key, task_head in self.task_heads.items():
-                res[task_key] = task_head(bevfeats).view(b, 1, -1, h, w)
-
-        return res
+        return mask_preds
 
     def init_weights(self):
         """Initialize weights."""
         super().init_weights()
         if "instance_center" in self.task_heads:
             self.task_heads["instance_center"][-1].bias.data.fill_(self.init_bias)
-
+        if self.flow_warp:
+            self.offset_pred.weight.data.normal_(0.0, 0.02)
+            self.offset_pred.bias.data.fill_(0)
 
 
     def prepare_future_labels(self, batch):

@@ -1292,13 +1292,18 @@ class DeformableDETRsegm(nn.Module):
         return out
 
 
+# def build_output_convs(in_channels, output_dict={"instance_centerness": 1, "instance_offset": 2, "instance_flow": 2, "motion_segmentation": 1}):
+#     for o in output_dict:
+#         output_dict[o] = nn.Conv2d(in_channels, output_dict[o], kernel_size=1)
+#     return output_dict
+
 class MaskHeadSmallConv(nn.Module):
     """
     Simple convolutional head, using group norm.
     Upsampling is done using a FPN approach
     """
 
-    def __init__(self, dim, fpn_dims, context_dim, output_convs=None):
+    def __init__(self, dim, fpn_dims, context_dim, output_dict=None):
         super().__init__()
 
         inter_dims = [dim, context_dim // 2, context_dim // 4,
@@ -1323,6 +1328,9 @@ class MaskHeadSmallConv(nn.Module):
         self.out_lay = torch.nn.Conv2d(
             inter_dims[4], 1, 3, padding=1)  # <- This would be differen
 
+        # if output_dict is not None:
+        #     self.future_pred_layers = build_output_convs(
+        #         inter_dims[4], output_dict)
         """ 
         outheads_
             - instance_centerness: 1x5x1x200x200 - BxFx1xHxW <- CUR F = N Future Steps 
@@ -1407,15 +1415,14 @@ class MaskHeadSmallConv(nn.Module):
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         #print(f"Interpolutaion with expan: {x.shape = }")
 
-        # x = F.interpolate(x, size=200, mode="nearest")
+       
         # print(f"Interpolutaion with expan: {x.shape = }")
         x = self.lay6(x)
         x = self.gn6(x)
         x = F.relu(x)
         #print(f"Fourth Expand: {x.shape = }")
+        x = F.interpolate(x, size=200, mode="nearest")
 
-        x = self.out_lay(x)
-        print(f"Out MHead SegConv Shape {x.shape = }")
         return x
 
 
@@ -1709,7 +1716,7 @@ def build_seg_detr(detr, args, freeze_detr=False):
     else:
         small_resnet = False
     output_convs = []  # TODO generate MAPS here for needed properties
-    return DeformableDETRsegm(detr, freeze_detr=freeze_detr, small_resnet=small_resnet, output_convs=output_convs)
+    return DeformableDETRsegm(detr, freeze_detr=freeze_detr, small_resnet=True, output_convs=output_convs)
 
 
 def _get_clones(module, N):
@@ -1866,7 +1873,7 @@ class DeformableDETR(nn.Module):
 
         print(f"{query_embeds.shape = }")
 
-        hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact, _, _ = self.transformer(
+        hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)
 
         outputs_classes = []

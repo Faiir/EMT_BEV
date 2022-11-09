@@ -73,7 +73,7 @@ class BEVerse(MVXTwoStageDetector):
         future_egomotion=None,
         aug_transform=None,
         img_is_valid=None,
-        count_time=True,
+        count_time=False,
     ):
         imgs = img[0]
         # image-view feature extraction

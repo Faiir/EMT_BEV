@@ -1,3 +1,8 @@
+from os import path as osp
+from mmdet3d.utils import collect_env
+from mmcv.runner import (HOOKS, DistSamplerSeedHook, EpochBasedRunner,
+                         Fp16OptimizerHook, OptimizerHook, build_optimizer,
+                         build_runner)
 import os
 from custome_logger import setup_custom_logger
 
@@ -11,9 +16,9 @@ from mmcv import Config
 from mmcv.runner import wrap_fp16_model
 from mmdet3d.models import build_model
 
-from mmdet3d.datasets import build_dataset
+from mmdet3d.datasets import build_dataloader,build_dataset
 from mmcv.parallel import MMDataParallel
-from mmdet.datasets import (build_dataloader, build_dataset,
+from mmdet.datasets import ( #build_dataset,
                             replace_ImageToTensor)
 
 def update_cfg(
@@ -225,26 +230,30 @@ cfg = update_cfg(
     t_input_shape=(90, 155),
 )
 
-cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
 
-dataset = build_dataset(cfg.data.test)
-data_loader = build_dataloader(
+train_data = True 
+if train_data:
+    #cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    dataset = build_dataset(cfg.data.train)
+else:
+    cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    dataset = build_dataset(cfg.data.test)
+data_loaders = [build_dataloader(
     dataset,
     samples_per_gpu=1,
     workers_per_gpu=cfg.data.workers_per_gpu,
     dist=False,
-    shuffle=False,)
+    shuffle=False,)]
 
-
-model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
-wrap_fp16_model(model)
+model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
+#wrap_fp16_model(model)
 
 model.cuda()
 model = MMDataParallel(model, device_ids=[0])
 
 
 
-sample = next(iter(data_loader))
+#sample = next(iter(data_loader))
 
 
 # model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
@@ -253,26 +262,57 @@ sample = next(iter(data_loader))
 # sample = next(iter(data_loader))
 
 
-motion_distribution_targets = {
-    # for motion prediction
-    "motion_segmentation": sample["motion_segmentation"][0],
-    "motion_instance": sample["motion_instance"][0],
-    "instance_centerness": sample["instance_centerness"][0],
-    "instance_offset": sample["instance_offset"][0],
-    "instance_flow": sample["instance_flow"][0],
-    "future_egomotion": sample["future_egomotions"][0],
+# motion_distribution_targets = {
+#     # for motion prediction
+#     "motion_segmentation": sample["motion_segmentation"][0],
+#     "motion_instance": sample["motion_instance"][0],
+#     "instance_centerness": sample["instance_centerness"][0],
+#     "instance_offset": sample["instance_offset"][0],
+#     "instance_flow": sample["instance_flow"][0],
+#     "future_egomotion": sample["future_egomotions"][0],
+# }
+#raise ValueError
+cfg.work_dir = "./"
+meta = dict()
+# log env info
+env_info_dict = collect_env()
+env_info = '\n'.join([(f'{k}: {v}') for k, v in env_info_dict.items()])
+dash_line = '-' * 60 + '\n'
+logger.info('Environment info:\n' + dash_line + env_info + '\n' +
+            dash_line)
+meta['env_info'] = env_info
+meta['config'] = cfg.pretty_text
+meta['seed'] = 1337
+meta['exp_name'] = "testname"
+
+optimizer = build_optimizer(model, cfg.optimizer)
+
+cfg.runner = {
+    'type': 'EpochBasedRunner',
+    'max_epochs': 1
 }
 
+runner = build_runner(
+    cfg.runner,
+    default_args=dict(
+        model=model,
+        optimizer=optimizer,
+        work_dir=cfg.work_dir,
+        logger=logger,
+        meta=meta))
 
-with torch.no_grad():
-    result = model(
-        return_loss=False,
-        rescale=True,
-        img_metas=sample["img_metas"],
-        img_inputs=sample["img_inputs"],
-        future_egomotions=sample["future_egomotions"],
-        motion_targets=motion_distribution_targets,
-        img_is_valid=sample["img_is_valid"][0],
-    )
+
+runner.run(data_loaders, cfg.workflow)
+
+# with torch.no_grad():
+#     result = model(
+#         return_loss=True,
+#         #rescale=True,
+#         img_metas=sample["img_metas"],
+#         img_inputs=sample["img_inputs"],
+#         future_egomotions=sample["future_egomotions"],
+#         #motion_targets=motion_distribution_targets,
+#         img_is_valid=sample["img_is_valid"]#[0],
+#     )
 
 print("done")

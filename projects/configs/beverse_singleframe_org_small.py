@@ -142,7 +142,7 @@ model = dict(
         map_grid_conf=map_grid_conf,
         motion_grid_conf=motion_grid_conf,
         using_ego=True,
-        task_enbale={
+        task_enable={
             "3dod": True,
             "map": True,
             "motion": True,

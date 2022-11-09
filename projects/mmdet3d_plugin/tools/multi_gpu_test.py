@@ -38,7 +38,7 @@ def multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False, show=Fals
     # multi-task settings
     test_mode = data_loader.dataset.test_submission
 
-    task_enable = model.module.pts_bbox_head.task_enbale
+    task_enable = model.module.pts_bbox_head.task_enable
     det_enable = task_enable.get('3dod', False)
     map_enable = task_enable.get('map', False)
     motion_enable = task_enable.get('motion', False)

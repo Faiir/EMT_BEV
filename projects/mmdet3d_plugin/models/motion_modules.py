@@ -247,8 +247,14 @@ class ResFuturePrediction(torch.nn.Module):
             with record_function("Future_Prediction_FlowWarp"):
                 if self.flow_warp:
                     combine = torch.cat((sample_distribution, current_state), dim=1)
+                    self.logger.debug(
+                        f"warp_state flow pred input  : {combine.shape = }")
                     flow = self.offset_pred(self.offset_conv(combine))
+                    self.logger.debug(
+                        f"warp_state flow_pred : {flow.shape = }")
                     warp_state = warp_with_flow(current_state, flow=flow)
+                    self.logger.debug(
+                        f"warp_state after warpwith flow : {warp_state.shape = }")
                     warp_state = torch.cat((warp_state, sample_distribution), dim=1)
                     self.logger.debug(
                         f"warp_state input Future prediction: {str(warp_state.shape)}"
@@ -258,10 +264,10 @@ class ResFuturePrediction(torch.nn.Module):
                     self.logger.debug(
                         f"warp_state input (no flowarp) Future prediction: {str(warp_state.shape)}"
                     )
-            with record_function("Future_Prediction_GRU_Pred"):
+            with record_function("Future_Predeiction_GRU_Pred"):
                 for gru_cell in self.gru_cells:
                     warp_state = gru_cell(warp_state, state=current_state)
-                self.logger.debug(f"Grucell Future prediction: {str(warp_state.shape)}")
+                self.logger.debug(f"Grucell Future prediction: {warp_state.shape = }")
             with record_function("Future_Prediction_SpatialConv"):
                 warp_state = self.spatial_conv(warp_state)
                 self.logger.debug(
@@ -275,7 +281,7 @@ class ResFuturePrediction(torch.nn.Module):
             else:
                 current_state = warp_state.clone()
 
-            return torch.stack(res, dim=1)
+        return torch.stack(res, dim=1)
 
 
 class ResFuturePredictionV2(torch.nn.Module):
