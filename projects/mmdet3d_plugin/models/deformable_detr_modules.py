@@ -1421,7 +1421,7 @@ class MaskHeadSmallConv(nn.Module):
         x = self.gn6(x)
         x = F.relu(x)
         #print(f"Fourth Expand: {x.shape = }")
-        x = F.interpolate(x, size=200, mode="nearest")
+        #x = F.interpolate(x, size=200, mode="nearest")
 
         return x
 

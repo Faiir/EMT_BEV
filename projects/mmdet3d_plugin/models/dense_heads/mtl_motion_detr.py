@@ -156,6 +156,7 @@ class MultiTaskHead(BaseModule):
         
         self.temporal_queries_activated = temporal_queries_activated 
         self.flow_warp = flow_warp
+        self.warper = FeatureWarper(grid_conf=grid_conf)
         
     def _init_detr_layers(self):
         if self.temporal_queries_activated:
@@ -181,17 +182,17 @@ class MultiTaskHead(BaseModule):
             in_channels = self.hidden_dim
         self.input_proj = nn.ModuleList(input_proj_list)
         
-        if self.flow_warp:
-            self.offset_conv = nn.Sequential(
-                nn.Conv2d(
-                    in_channels, in_channels, kernel_size=3, padding=1
-                ),
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(),
-            )
-            self.offset_pred = nn.Conv2d(
-                in_channels, 2, kernel_size=1, padding=0
-            )
+        # if self.flow_warp:
+        #     self.offset_conv = nn.Sequential(
+        #         nn.Conv2d(
+        #             in_channels, in_channels, kernel_size=3, padding=1
+        #         ),
+        #         nn.BatchNorm2d(in_channels),
+        #         nn.ReLU(),
+        #     )
+        #     self.offset_pred = nn.Conv2d(
+        #         in_channels, 2, kernel_size=1, padding=0
+        #     )
          
     
     def _initialize_layers(self):
@@ -383,14 +384,20 @@ class MultiTaskHead(BaseModule):
         dod_pred = self.task_decoders["3dod"](
                 hs,init_reference)
 
-        warped_bev_feats = [task_feat]
-        if self.flow_warp:
-            for _ in range(self.n_future):
-                flow = self.offset_pred(self.offset_conv(task_feat))
-                warp_state = warp_with_flow(task_feat, flow=flow)
-                warped_bev_feats.append(warp_state)
+        
+        # if self.flow_warp:
+        #     future_egomotion = targets["future_egomotion"]
+        #     for _ in range(self.n_future):
+        #         warp_state = self.warper.cumulative_warp_features_reverse(
+        #             segmentation_labels.float().unsqueeze(2),
+        #             future_egomotion[:, (self.receptive_field - 1):],
+        #             mode="nearest",
+        #             bev_transform=bev_transform,
+        #                 ).long().contiguous()
+                
+        #         warped_bev_feats.append(warp_state)
         motion_pred = self.task_decoders["motion"](
-            hs, init_reference, seg_memory, seg_mask, warped_bev_feats)
+            hs, init_reference, seg_memory, seg_mask, features)
         
         
         predictions["map"] = map_pred

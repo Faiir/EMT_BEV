@@ -74,7 +74,11 @@ class IterativeFlow(BaseMotionHead):
                 ) = self.prepare_future_labels(targets)
             else:
                 future_distribution_inputs = None
-
+            if targets is not None:
+                (
+                    self.training_labels,
+                    _,
+                ) = self.prepare_future_labels(targets)
             res = {}
             if self.n_future > 0:
                 with record_function("iterative_flow_part1"):

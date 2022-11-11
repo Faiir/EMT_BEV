@@ -64,9 +64,7 @@ class NMSFreeCoder(BaseBBoxCoder):
         labels = indexs % self.num_classes
         bbox_index = indexs // self.num_classes
         bbox_preds = bbox_preds[bbox_index]
-        print(f"NMS_FREE DECODE SINGLE bbox_preds {bbox_preds.shape}")
         final_box_preds = denormalize_bbox(bbox_preds, self.pc_range)  
-        print(f"NMS_FREE DECODE SINGLE FINAL BOX PREDS{final_box_preds.shape}")
         final_scores = scores 
         final_preds = labels 
 

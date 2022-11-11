@@ -314,17 +314,24 @@ class BaseMotionHead(BaseTaskHead):
         future_distribution_inputs = []
 
         segmentation_labels = batch["motion_segmentation"]
+        print(f"{segmentation_labels.shape = }")
         instance_center_labels = batch["instance_centerness"]
+        print(f"{instance_center_labels.shape = }")
         instance_offset_labels = batch["instance_offset"]
+        print(f"{instance_offset_labels.shape = }")
         instance_flow_labels = batch["instance_flow"]
+        print(f"{instance_flow_labels.shape = }")
         gt_instance = batch["motion_instance"]
+        print(f"{gt_instance.shape = }")
         future_egomotion = batch["future_egomotion"]
+        print(f"{future_egomotion.shape = }")
         bev_transform = batch.get("aug_transform", None)
         labels["img_is_valid"] = batch.get("img_is_valid", None)
 
+
         if bev_transform is not None:
             bev_transform = bev_transform.float()
-
+        print("WARPING")
         segmentation_labels = (
             self.warper.cumulative_warp_features_reverse(
                 segmentation_labels.float().unsqueeze(2),
@@ -335,7 +342,7 @@ class BaseMotionHead(BaseTaskHead):
             .long()
             .contiguous()
         )
-        print(f"Seg labels shape: {segmentation_labels.shape}")
+        print(f"Seg labels shape: {segmentation_labels.shape =}")
         labels["segmentation"] = segmentation_labels
         future_distribution_inputs.append(segmentation_labels)
 
@@ -351,7 +358,7 @@ class BaseMotionHead(BaseTaskHead):
             .contiguous()[:, :, 0]
         )
         labels["instance"] = gt_instance
-        print(f"gt_instance shape: {gt_instance.shape}")
+        print(f"gt_instance shape: {gt_instance.shape =}")
         instance_center_labels = self.warper.cumulative_warp_features_reverse(
             instance_center_labels,
             future_egomotion[:, (self.receptive_field - 1) :],
@@ -359,7 +366,7 @@ class BaseMotionHead(BaseTaskHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["centerness"] = instance_center_labels
-        print(f"instance_center_labels shape: {instance_center_labels.shape}")
+        print(f"instance_center_labels shape: {instance_center_labels.shape = }")
         instance_offset_labels = self.warper.cumulative_warp_features_reverse(
             instance_offset_labels,
             future_egomotion[:, (self.receptive_field - 1) :],
@@ -367,7 +374,7 @@ class BaseMotionHead(BaseTaskHead):
             bev_transform=bev_transform,
         ).contiguous()
         labels["offset"] = instance_offset_labels
-        print(f"instance_offset_labels shape: {instance_offset_labels.shape}")
+        print(f"instance_offset_labels shape: {instance_offset_labels.shape =}")
         future_distribution_inputs.append(instance_center_labels)
         future_distribution_inputs.append(instance_offset_labels)
 
@@ -379,7 +386,7 @@ class BaseMotionHead(BaseTaskHead):
         ).contiguous()
         labels["flow"] = instance_flow_labels
         future_distribution_inputs.append(instance_flow_labels)
-        print(f"instance_flow_labels shape: {instance_flow_labels.shape}")
+        print(f"instance_flow_labels shape: {instance_flow_labels.shape = }")
         if len(future_distribution_inputs) > 0:
             future_distribution_inputs = torch.cat(future_distribution_inputs, dim=2)
 

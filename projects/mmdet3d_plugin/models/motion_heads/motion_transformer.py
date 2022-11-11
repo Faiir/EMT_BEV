@@ -43,6 +43,7 @@ class Motion_DETR(BaseModule):
                 use_topk=True,
                 topk_ratio=0.25,
                 ignore_index=255,
+                num_queries=300,
                 posterior_with_label=False,
                 sample_ignore_mode="all_valid",
                 using_focal_loss=False,
@@ -150,27 +151,31 @@ class Motion_DETR(BaseModule):
         self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
     
-
+        self.out_segmentation = torch.nn.Conv2d(num_queries,1, 3, padding=1)
+        self.out_instance_flow = torch.nn.Conv2d(num_queries, 2, 3, padding=1)
+        
         self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
-    def forward(self,  hs, reference, seg_memory, seg_mask, warped_bev_feats, targets=None, noise=None):
+    def forward(self,  hs, reference, seg_memory, seg_mask, pyramid_bev_feats, targets=None, noise=None):
         """
         the forward process of motion head:
         1. get present & future distributions
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
+
+            
         bs = hs.shape[0]
         mask_preds = []
-        for warped_bev_feat in warped_bev_feats:
+        for _ in self.n_future:
 
             bbox_mask = self.bbox_attention(hs[-1], seg_memory, mask=seg_mask)
 
-            input_projections = [(warped_bev_feat[-1][0]),
-                                 (warped_bev_feat[-2][0]), (warped_bev_feat[-3][0]), warped_bev_feat[-4][0]]
+            input_projections = [(pyramid_bev_feats[-1][0]),
+                                 (pyramid_bev_feats[-2][0]), (pyramid_bev_feats[-3][0]), pyramid_bev_feats[-4][0]]
             # feature pyramid stuff <-- this is where the shapes are relevant
             seg_masks = self.mask_head(
-                warped_bev_feat[-1], bbox_mask, input_projections)
+                pyramid_bev_feats[-1], bbox_mask, input_projections)
             outputs_seg_masks = seg_masks.view(
                 bs, self.num_queries, seg_masks.shape[-2], seg_masks.shape[-1])
             # TODO OUTPUT HEAD WITH 1v1 Conv and channels 
@@ -211,8 +216,8 @@ class Motion_DETR(BaseModule):
         #future_distribution_inputs = []
 
         segmentation_labels = batch["motion_segmentation"]
-        instance_center_labels = batch["instance_centerness"]
-        instance_offset_labels = batch["instance_offset"]
+        #instance_center_labels = batch["instance_centerness"]
+        #instance_offset_labels = batch["instance_offset"]
         instance_flow_labels = batch["instance_flow"]
         gt_instance = batch["motion_instance"]
         future_egomotion = batch["future_egomotion"]
@@ -249,21 +254,21 @@ class Motion_DETR(BaseModule):
         )
         labels["instance"] = gt_instance
         print(f"gt_instance shape: {gt_instance.shape}")
-        instance_center_labels = self.warper.cumulative_warp_features_reverse(
-            instance_center_labels,
-            future_egomotion[:, (self.receptive_field - 1) :],
-            mode="nearest",
-            bev_transform=bev_transform,
-        ).contiguous()
-        labels["centerness"] = instance_center_labels
-        print(f"instance_center_labels shape: {instance_center_labels.shape}")
-        instance_offset_labels = self.warper.cumulative_warp_features_reverse(
-            instance_offset_labels,
-            future_egomotion[:, (self.receptive_field - 1) :],
-            mode="nearest",
-            bev_transform=bev_transform,
-        ).contiguous()
-        labels["offset"] = instance_offset_labels
+        # instance_center_labels = self.warper.cumulative_warp_features_reverse(
+        #     instance_center_labels,
+        #     future_egomotion[:, (self.receptive_field - 1) :],
+        #     mode="nearest",
+        #     bev_transform=bev_transform,
+        # ).contiguous()
+        # labels["centerness"] = instance_center_labels
+        # print(f"instance_center_labels shape: {instance_center_labels.shape}")
+        # instance_offset_labels = self.warper.cumulative_warp_features_reverse(
+        #     instance_offset_labels,
+        #     future_egomotion[:, (self.receptive_field - 1) :],
+        #     mode="nearest",
+        #     bev_transform=bev_transform,
+        # ).contiguous()
+        # labels["offset"] = instance_offset_labels
 
 
         instance_flow_labels = self.warper.cumulative_warp_features_reverse(
@@ -279,7 +284,7 @@ class Motion_DETR(BaseModule):
         # self.visualizer.visualize_motion(labels=labels)
         # pdb.set_trace()
 
-        return labels
+        return labels, future_egomotion[:, (self.receptive_field - 1):]
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
@@ -289,13 +294,17 @@ class Motion_DETR(BaseModule):
         """
         prediction dict:
             'segmentation': 2,
-            'instance_center': 1,
-            'instance_offset': 2,
             'instance_flow': 2,
         """
 
         for key, val in self.training_labels.items():
             self.training_labels[key] = val.float()
+
+        predictions["segmentation"] = torch.nn.interpolate(predictions["segmentation"][:, None], size=self.training_labels["segmentation"].shape[-2:],
+                                mode="bilinear", align_corners=False)
+
+        predictions["instance_flow"] = torch.nn.interpolate(predictions["instance_flow"][:, None], size=self.training_labels["flow"].shape[-2:],
+                                                           mode="bilinear", align_corners=False)
 
         frame_valid_mask = self.training_labels["img_is_valid"].bool()
         past_valid_mask = frame_valid_mask[:, : self.receptive_field]
@@ -324,25 +333,25 @@ class Motion_DETR(BaseModule):
         )
 
         # instance centerness, but why not focal loss
-        if self.using_focal_loss:
-            loss_dict["loss_motion_centerness"] = self.cls_instance_center_criterion(
-                predictions["instance_center"],
-                self.training_labels["centerness"],
-                frame_mask=future_frame_mask,
-            )
-        else:
-            loss_dict["loss_motion_centerness"] = self.reg_instance_center_criterion(
-                predictions["instance_center"],
-                self.training_labels["centerness"],
-                frame_mask=future_frame_mask,
-            )
+        # if self.using_focal_loss:
+        #     loss_dict["loss_motion_centerness"] = self.cls_instance_center_criterion(
+        #         predictions["instance_center"],
+        #         self.training_labels["centerness"],
+        #         frame_mask=future_frame_mask,
+        #     )
+        # else:
+        #     loss_dict["loss_motion_centerness"] = self.reg_instance_center_criterion(
+        #         predictions["instance_center"],
+        #         self.training_labels["centerness"],
+        #         frame_mask=future_frame_mask,
+        #     )
 
         # instance offset
-        loss_dict["loss_motion_offset"] = self.reg_instance_offset_criterion(
-            predictions["instance_offset"],
-            self.training_labels["offset"],
-            frame_mask=future_frame_mask,
-        )
+        # loss_dict["loss_motion_offset"] = self.reg_instance_offset_criterion(
+        #     predictions["instance_offset"],
+        #     self.training_labels["offset"],
+        #     frame_mask=future_frame_mask,
+        # )
 
         if self.n_future > 0:
             # instance flow
@@ -366,13 +375,16 @@ class Motion_DETR(BaseModule):
 
     def inference(self, predictions):
         # [b, s, num_cls, h, w]
+        predictions["segmentation"] = torch.nn.interpolate(predictions["segmentation"][:, None], size=self.training_labels["segmentation"].shape[-2:],
+                                                           mode="bilinear", align_corners=False)
         seg_prediction = torch.argmax(predictions["segmentation"], dim=2, keepdims=True)
 
         if self.using_focal_loss:
             predictions["instance_center"] = torch.sigmoid(
                 predictions["instance_center"]
             )
-
+        
+        #non max suppression
         pred_consistent_instance_seg = predict_instance_segmentation_and_trajectories(
             predictions,
             compute_matched_centers=False,

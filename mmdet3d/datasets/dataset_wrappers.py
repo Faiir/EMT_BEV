@@ -17,7 +17,10 @@ class CBGSDataset(object):
     """
 
     def __init__(self, dataset):
+        print("CGBSDATASET")
         self.dataset = dataset
+        print(type(self.dataset))
+        print(dir(self.dataset))
         self.CLASSES = dataset.CLASSES
         self.cat2id = {name: i for i, name in enumerate(self.CLASSES)}
         self.sample_indices = self._get_sample_indices()

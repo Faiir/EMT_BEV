@@ -52,10 +52,12 @@ class HungarianAssigner3D(BaseAssigner):
                  cls_cost=dict(type='ClassificationCost', weight=1.),
                  reg_cost=dict(type='BBoxL1Cost', weight=1.0),
                  iou_cost=dict(type='IoUCost', weight=0.0),
+                 n_future=3,
                  pc_range=None):
         self.cls_cost = build_match_cost(cls_cost)
         self.reg_cost = build_match_cost(reg_cost)
         self.iou_cost = build_match_cost(iou_cost)
+        self.n_future = n_future
         self.pc_range = pc_range
 
     def assign(self,

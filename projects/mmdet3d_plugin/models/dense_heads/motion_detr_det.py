@@ -115,7 +115,9 @@ class Temp_DETR_DET(BaseModule):
         
         assigner = train_cfg['assigner']
         self.assigner = build_assigner(assigner)
-        
+        # DETR sampling=False, so use PseudoSampler
+        sampler_cfg = dict(type='PseudoSampler')
+        self.sampler = build_sampler(sampler_cfg, context=self)
         self.n_future = n_future 
         self.classes = None 
         self.loss_cls = build_loss(loss_cls)
@@ -175,6 +177,25 @@ class Temp_DETR_DET(BaseModule):
             'enc_bbox_preds': None,
         }
         return outs
+    
+    #maybe lets see 
+    def prepare_future_labels(self, batch):
+        gt_bboxes_list = batch["gt_bboxes_list"]
+        future_egomotion = batch["future_egomotion"]
+        #gt_labels_list = batch["gt_bboxes_list"]
+        bev_transform = batch.get("aug_transform", None)
+        
+        gt_bboxes_list = (
+            self.warper.cumulative_warp_features_reverse(
+                gt_bboxes_list.float().unsqueeze(2),
+                future_egomotion[:, (self.receptive_field - 1) :],
+                mode="nearest",
+                bev_transform=bev_transform,
+            )
+            .long()
+            .contiguous()
+        )
+        labels = []
     
     @force_fp32(apply_to=('preds_dicts'))
     def loss(self,

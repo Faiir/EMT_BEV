@@ -23,8 +23,8 @@ from mmdet.datasets import ( #build_dataset,
 
 def update_cfg(
     cfg,
-    n_future=3,
-    receptive_field=3,
+    n_future=4,
+    receptive_field=4,
     resize_lim=(0.38, 0.55),
     final_dim=(256, 704),
     grid_conf={
@@ -231,7 +231,7 @@ cfg = update_cfg(
 )
 
 
-train_data = True 
+train_data = False 
 if train_data:
     #cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
@@ -240,10 +240,14 @@ else:
     dataset = build_dataset(cfg.data.test)
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=1,
+    samples_per_gpu=2,
     workers_per_gpu=cfg.data.workers_per_gpu,
     dist=False,
     shuffle=False,)]
+
+sample = next(iter(data_loaders[0]))
+
+assert ValueError
 
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
 #wrap_fp16_model(model)

@@ -244,6 +244,7 @@ class ResFuturePrediction(torch.nn.Module):
             f"Current_state input Future prediction: {str(current_state.shape)}"
         )
         for i in range(self.n_future):
+            print(f"Predicting t+{i+1}")
             with record_function("Future_Prediction_FlowWarp"):
                 if self.flow_warp:
                     combine = torch.cat((sample_distribution, current_state), dim=1)

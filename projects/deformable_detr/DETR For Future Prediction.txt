@@ -1,6 +1,26 @@
 DETR For Future Prediction
 
 
+TODO:
+  Correct Losses 
+  Correct Labels --
+    Future BBoxes 
+    Future Segmentation 
+      Vehicle Class 
+  Model runs 
+    Correct Outputs 
+    Correct Layer combinations
+  Build is possible 
+
+  QIM (MOTR) / Trackformer 
+  (Flow Label and computation )
+    -> Predict / Regress flow between detected Centers somehow?
+        Make consistent (evtl - mal schauen)
+
+
+list of list 
+  N x 9
+
 
 future instance segmentation 
 
