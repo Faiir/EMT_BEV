@@ -71,7 +71,7 @@ class RegLayer(nn.Module):
 
 
 @HEADS.register_module()
-class Temp_DETR_DET(BaseModule):
+class Motion_DETR_DET(BaseModule):
     """Temp_DETR_DET 
     
     Detection Head for Temporal DETR:
@@ -140,7 +140,7 @@ class Temp_DETR_DET(BaseModule):
         
         
         reg_branchs = []
-        for _ in range(self.n_future):
+        for _ in range(1):
             reg_branchs.append(RegLayer(
                 self.embed_dims, self.num_reg_fcs, self.group_reg_dims))
         
@@ -160,19 +160,19 @@ class Temp_DETR_DET(BaseModule):
         outputs_classes = []
         outputs_coords = []
         reference = inverse_sigmoid(references.clone())
-        for n in range(self.n_future):
-            outputs_class = self.cls_branches[n] 
-            tmp = self.reg_branches[n](decoder_output)
-            # add references to xy info - rest doesn't need references accoridng to petr 
-            tmp[..., 0:2] += reference[..., 0:2]
-            tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
-            outputs_coord = tmp
-            outputs_classes.append(outputs_class)
-            outputs_coords.append(outputs_coord)
-        
+        #for n in range(self.n_future):
+        outputs_class = self.cls_branches 
+        tmp = self.reg_branches(decoder_output)
+        # add references to xy info - rest doesn't need references accoridng to petr 
+        tmp[..., 0:2] += reference[..., 0:2]
+        tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
+        outputs_coord = tmp
+        #outputs_classes.append(outputs_class)
+        #outputs_coords.append(outputs_coord)
+    
         outs = {
-            'all_cls_scores': outputs_classes,
-            'all_bbox_preds': outputs_coords,
+            'all_cls_scores': outputs_class,
+            'all_bbox_preds': outputs_coord,
             'enc_cls_scores': None,
             'enc_bbox_preds': None,
         }

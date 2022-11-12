@@ -167,3 +167,4 @@ logs/*
 weights/beverse_tiny.pth
 weights/beverse_small.pth
 *.Identifier
+*.pth

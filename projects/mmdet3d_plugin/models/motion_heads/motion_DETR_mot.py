@@ -31,7 +31,7 @@ from mmcv.runner import BaseModule
 
 
 @HEADS.register_module()
-class Motion_DETR(BaseModule):
+class Motion_DETR_MOT(BaseModule):
     def __init__(self,DETR_ARGS ,
                  receptive_field=3,
                  n_future=0,
@@ -55,7 +55,7 @@ class Motion_DETR(BaseModule):
                 test_cfg=None,
                  init_cfg=dict(type="Kaiming", layer="Conv2d"),
                  **kwargs):
-        super(Motion_DETR, self).__init__(**kwargs)
+        super(Motion_DETR_MOT, self).__init__(**kwargs)
         self.logger = logging.getLogger("timelogger")
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -77,9 +77,10 @@ class Motion_DETR(BaseModule):
                 nn.Conv2d(inter_channels, task_dim, kernel_size=1, padding=0),
             )
 
-        
-        self.bbox_attention = MHAttentionMap(
-            hidden_dim, hidden_dim, nheads, dropout=0)
+        self.bbox_attentions = []
+        for _ in range(n_future):
+            self.bbox_attentions.append(MHAttentionMap(
+                hidden_dim, hidden_dim, nheads, dropout=0))
 
         fpn_dims = [512, 256, 128, 64]
 
@@ -167,9 +168,9 @@ class Motion_DETR(BaseModule):
             
         bs = hs.shape[0]
         mask_preds = []
-        for _ in self.n_future:
+        for n in self.n_future:
 
-            bbox_mask = self.bbox_attention(hs[-1], seg_memory, mask=seg_mask)
+            bbox_mask = self.bbox_attentions[n](hs[-1], seg_memory, mask=seg_mask)
 
             input_projections = [(pyramid_bev_feats[-1][0]),
                                  (pyramid_bev_feats[-2][0]), (pyramid_bev_feats[-3][0]), pyramid_bev_feats[-4][0]]

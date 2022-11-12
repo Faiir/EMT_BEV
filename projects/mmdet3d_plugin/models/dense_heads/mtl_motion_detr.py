@@ -19,7 +19,7 @@ from ..motion_modules import warp_with_flow
 
 
 @HEADS.register_module()
-class MultiTaskHead(BaseModule):
+class MultiTaskHead_Motion_DETR(BaseModule):
     def __init__(
         self,
         init_cfg=None,
@@ -53,12 +53,13 @@ class MultiTaskHead(BaseModule):
         num_feature_levels=4, dec_n_points=6, enc_n_points=6, num_queries=150,
 
         #DETR END  ARGS HERE
-
+        flow_warp=False,
+        temporal_queries_activated=True,
         train_cfg=None,
         test_cfg=None,
         **kwargs,
     ):
-        super(MultiTaskHead, self).__init__(init_cfg)
+        super(MultiTaskHead_Motion_DETR, self).__init__(init_cfg)
 
         self.fp16_enabled = False
         self.task_enable = task_enable
@@ -92,7 +93,9 @@ class MultiTaskHead(BaseModule):
                 is_enable = task_enable.get(task_name, False)
                 if not is_enable:
                     continue
-
+                if task_name is not "map":
+                    out_channels = 64
+                
                 self.taskfeat_encoders[task_name] = BevEncode(
                     numC_input=in_channels,
                     numC_output=out_channels,
@@ -136,9 +139,7 @@ class MultiTaskHead(BaseModule):
                 grid_conf, motion_grid_conf
             )
             self.task_decoders["motion"] = builder.build_head(cfg_motion)
-        print("TASK DECODERS")
-        print(self.task_decoders)
-        print("---------"*12)
+
         self.hidden_dim = hidden_dim
         self.num_feature_levels = num_feature_levels
         self.num_queries = num_queries
@@ -151,8 +152,8 @@ class MultiTaskHead(BaseModule):
                                                         dim_feedforward, dropout_transformer, activation,
                                                         num_feature_levels, dec_n_points, enc_n_points,
                                                         num_queries)
-        self.DETR = build_detr(
-            self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
+        # self.DETR = build_detr(
+        #     self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
         
         self.temporal_queries_activated = temporal_queries_activated 
         self.flow_warp = flow_warp
@@ -161,7 +162,7 @@ class MultiTaskHead(BaseModule):
     def _init_detr_layers(self):
         if self.temporal_queries_activated:
             self.temporal_query_projection = nn.Sequential(
-                nn.Linear(num_queries, out_features=num_queries),
+                nn.Linear(self.num_queries, out_features=self.num_queries),
                 nn.Dropout(p=0.1),
                 nn.ReLU(),
             )

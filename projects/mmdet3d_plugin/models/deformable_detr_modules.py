@@ -19,7 +19,7 @@ from torch.nn.init import xavier_uniform_, constant_, uniform_, normal_
 from torch import Tensor
 from torchvision.models._utils import IntermediateLayerGetter
 
-from models.ops.modules import MSDeformAttn
+from .ops.modules import MSDeformAttn
 
 
 import torch.utils.checkpoint as cp

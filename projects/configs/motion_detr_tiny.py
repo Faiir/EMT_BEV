@@ -1,4 +1,4 @@
-_base_ = ["./beverse_singleframe_org.py"]
+_base_ = ["./motion_detr_singleframe_tiny.py"]
 
 receptive_field = 4
 future_frames = 3
