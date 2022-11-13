@@ -1,6 +1,7 @@
 import logging
 import torch
 import torch.nn as nn
+import torch.nn.functional as F 
 from mmcv.runner import BaseModule
 from mmdet3d.models import builder
 from mmcv.cnn import build_norm_layer
@@ -16,6 +17,8 @@ from ...datasets.utils.geometry import cumulative_warp_features_reverse
 from ...datasets.utils.instance import predict_instance_segmentation_and_trajectories
 from ...datasets.utils.warper import FeatureWarper
 from ..motion_modules import warp_with_flow
+from mmdet3d.core.bbox.coders import build_bbox_coder
+
 
 
 @HEADS.register_module()
@@ -26,7 +29,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         task_enable=None,
         task_weights=None,
         in_channels=64,
-        out_channels=256,
+        out_channels_det=64,
+        out_channels_map=256,
         bev_encode_block="BottleNeck",
         bev_encoder_type="resnet18",
         bev_encode_depth=[2, 2, 2],
@@ -34,6 +38,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         backbone_output_ids=None,
         norm_cfg=dict(type="BN"),
         bev_encoder_fpn_type="lssfpn",
+        bbox_coder=None,
         grid_conf=None,
         det_grid_conf=None,
         map_grid_conf=None,
@@ -49,10 +54,20 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         position_embedding="sine",
         num_pos_feats=128,
         #in_channels=64,
-                 hidden_dim=512, nheads=8, enc_layers=6, dec_layers=6, dim_feedforward=512, dropout_transformer=0.1, activation="relu",
-        num_feature_levels=4, dec_n_points=6, enc_n_points=6, num_queries=150,
+        hidden_dim=512,
+        nheads=8, 
+        enc_layers=6, 
+        dec_layers=6, 
+        dim_feedforward=512, 
+        dropout_transformer=0.1, 
+        activation="relu",
+        num_feature_levels=4,
+        dec_n_points=6, 
+        enc_n_points=6, 
+        num_queries=150,
 
         #DETR END  ARGS HERE
+        n_future=0,
         flow_warp=False,
         temporal_queries_activated=True,
         train_cfg=None,
@@ -60,6 +75,10 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         **kwargs,
     ):
         super(MultiTaskHead_Motion_DETR, self).__init__(init_cfg)
+
+        self.bbox_coder = build_bbox_coder(bbox_coder)
+        self.pc_range = self.bbox_coder.pc_range
+
 
         self.fp16_enabled = False
         self.task_enable = task_enable
@@ -93,8 +112,16 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                 is_enable = task_enable.get(task_name, False)
                 if not is_enable:
                     continue
-                if task_name is not "map":
-                    out_channels = 64
+                
+                if task_name == "map":
+                    out_channels = out_channels_map
+                elif task_name == "3dod":
+                    out_channels = out_channels_det
+                elif task_name == "motion":
+                    continue # shared encoder 3dod / motion
+                else:
+                    print("standard outchannels 256")
+                    out_channels = 256
                 
                 self.taskfeat_encoders[task_name] = BevEncode(
                     numC_input=in_channels,
@@ -108,6 +135,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                     out_with_activision=out_with_activision,
                 )
 
+        #print(self.taskfeat_encoders["3dod"])
+        
         # build task-decoders
         self.task_decoders = nn.ModuleDict()
         self.task_feat_cropper = nn.ModuleDict()
@@ -131,10 +160,11 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             self.task_decoders["map"] = builder.build_head(cfg_map)
 
         # motion_head
+        self.motion_enabled =False
         if task_enable.get("motion", False):
             cfg_motion.update(train_cfg=train_cfg)
             cfg_motion.update(test_cfg=test_cfg)
-
+            self.motion_enabled = True
             self.task_feat_cropper["motion"] = BevFeatureSlicer(
                 grid_conf, motion_grid_conf
             )
@@ -145,7 +175,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.num_queries = num_queries
         
         self.backbone = build_backbone(backbone=backbone, layers=[
-                   2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats)
+                   2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats, hidden_dim=hidden_dim)
 
 
         self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
@@ -158,6 +188,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.temporal_queries_activated = temporal_queries_activated 
         self.flow_warp = flow_warp
         self.warper = FeatureWarper(grid_conf=grid_conf)
+        self.two_stage = False
+        self._init_detr_layers()
         
     def _init_detr_layers(self):
         if self.temporal_queries_activated:
@@ -183,6 +215,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             in_channels = self.hidden_dim
         self.input_proj = nn.ModuleList(input_proj_list)
         
+        self.query_embed = nn.Embedding(self.num_queries, self.hidden_dim*2)
         # if self.flow_warp:
         #     self.offset_conv = nn.Sequential(
         #         nn.Conv2d(
@@ -194,7 +227,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         #     self.offset_pred = nn.Conv2d(
         #         in_channels, 2, kernel_size=1, padding=0
         #     )
-         
+        self.past_query_embed = None 
     
     def _initialize_layers(self):
         for proj in self.input_proj:
@@ -221,6 +254,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                 gt_bboxes_3d=targets["gt_bboxes_3d"],
                 gt_labels_3d=targets["gt_labels_3d"],
                 preds_dicts=predictions["3dod"],
+                pc_range=self.pc_range
             )
             loss_dict.update(
                 self.scale_task_losses(
@@ -254,7 +288,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         # derive bounding boxes for detection head
         if self.task_enable.get("3dod", False):
             print("MTL Head Inf 3dod")
-            res["bbox_list"] = self.task_decoders["3dod"].get_bboxes(
+            res["bbox_list"] = self.get_bboxes(
                 predictions["3dod"], img_metas=img_metas, rescale=rescale
             )  # Has len 6 -< and attributes of: reg (2,200,200), height (1,200,200), dim ( (3,200,200)), rot(2,200,200), vel (2,200,200), heatmap (1,200,200)
 
@@ -332,16 +366,16 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         task_feat = self.task_feat_cropper["map"](bev_feats)
         self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
         # task-specific feature encoder
-        task_feat = self.taskfeat_encoders["map"]([task_feat])
-        map_pred = self.task_decoders["map"]([task_feat])
+        map_feat = self.taskfeat_encoders["map"]([task_feat])
+        map_pred = self.task_decoders["map"]([map_feat])
         
         
         
         
         self.logger.debug(
             f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
-        
-        task_feat = self.taskfeat_encoders["3dod"]([task_feat])
+        det_feat = self.task_feat_cropper["3dod"](bev_feats)
+        task_feat = self.taskfeat_encoders["3dod"]([det_feat])
         b,c,h,w = task_feat.shape
         task_mask = mask = torch.ones(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
@@ -372,12 +406,16 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         query_embeds = None
         if not self.two_stage:
             query_embeds = self.query_embed.weight
-            if self.temporal_queries_activated:
+            if self.temporal_queries_activated: #TODO FIX this 
                 if self.past_query_embed is None:
-                    self.past_query_embed = self.temporal_query_projection(
-                        query_embeds)
+                    self.past_query_embed = nn.Embedding(self.num_queries, self.hidden_dim*2)
+                    past_query_embed = self.past_query_embed.weight
+                else:
+                    past_query_embed = self.past_query_embed.weight
+                past_query_embed = self.temporal_query_projection(
+                    past_query_embed)
                 print(f"{self.past_query_embed.shape = }")
-                query_embeds += self.past_query_embed
+                query_embeds += past_query_embed
         hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)
         
@@ -397,12 +435,38 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         #                 ).long().contiguous()
                 
         #         warped_bev_feats.append(warp_state)
-        motion_pred = self.task_decoders["motion"](
-            hs, init_reference, seg_memory, seg_mask, features)
-        
+        if self.motion_enabled:
+            motion_pred = self.task_decoders["motion"](
+                hs, init_reference, seg_memory, seg_mask, features)
+            predictions["motion"] = motion_pred
         
         predictions["map"] = map_pred
         predictions["3dod"] = dod_pred
-        predictions["motion"] = motion_pred
+        
         
         return predictions
+
+    @force_fp32(apply_to=('preds_dicts'))
+    def get_bboxes(self, preds_dicts, img_metas, rescale=False):
+        """Generate bboxes from bbox head predictions.
+        Args:
+            preds_dicts (tuple[list[dict]]): Prediction results.
+            img_metas (list[dict]): Point cloud and image's meta info.
+        Returns:
+            list[dict]: Decoded bbox, scores and labels after nms.
+        """
+        preds_dicts = self.bbox_coder.decode(preds_dicts)
+        num_samples = len(preds_dicts)
+        future_list = []
+        for n in range(self.n_future):
+            ret_list = []
+            for i in range(num_samples):
+                preds = preds_dicts[i]
+                bboxes = preds['bboxes']
+                bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
+                bboxes = img_metas[i]['box_type_3d'](bboxes, bboxes.size(-1))
+                scores = preds['scores']
+                labels = preds['labels']
+                ret_list.append([bboxes, scores, labels])
+            future_list.append(ret_list)
+        return ret_list

@@ -83,9 +83,13 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
+hidden_dim = 256
+num_queries = 300
+
+
 voxel_size = [0.1, 0.1, 0.2]
 model = dict(
-    type="BEVerse",
+    type="BEVerse_Motion_DETR",
     img_backbone=dict(
         type="SwinTransformer",
         pretrained="https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth",
@@ -133,31 +137,43 @@ model = dict(
         type="MultiTaskHead_Motion_DETR",
         n_future=future_frames,
         in_channels=64,
-        out_channels=256,
-        hidden_dim=1024,
+        out_channels_det=64,
+        out_channels_map=256,
+        hidden_dim=hidden_dim,
         nheads=8,
         enc_layers=6,
         dec_layers=6,
-        dim_feedforward=1024,
+        dec_n_points=6,
+        enc_n_points=6,
+        dim_feedforward=hidden_dim,
         dropout_transformer=0.1, 
         activation="relu",
         num_feature_levels=4, 
-        dec_n_points=6, enc_n_points=6, 
-        num_queries=150,
+        num_queries=num_queries,
         backbone="resnet18",
         position_embedding="sine",
         num_pos_feats=128,
-        temporal_queries_activated=True, 
+        temporal_queries_activated=False, 
         flow_warp=False,
         grid_conf=grid_conf,
         det_grid_conf=det_grid_conf,
         map_grid_conf=map_grid_conf,
         motion_grid_conf=motion_grid_conf,
         using_ego=True,
+        bbox_coder=dict(
+            type="NMSFreeCoder",
+            pc_range=point_cloud_range,
+            post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+            max_num=300,
+            #score_threshold=0.1,
+            #out_size_factor=8,
+            voxel_size=voxel_size,
+            num_classes=10,
+        ),
         task_enable={
             "3dod": True,
             "map": True,
-            "motion": True,
+            "motion": False,
         },
         task_weights={
             "3dod": 1.0,
@@ -168,6 +184,7 @@ model = dict(
         cfg_3dod=dict(
             type="Motion_DETR_DET",
             in_channels=256,
+            hidden_dim=hidden_dim,
             tasks=[
                 dict(num_class=1, class_names=["car"]),
                 dict(num_class=2, class_names=["truck", "construction_vehicle"]),
@@ -179,18 +196,9 @@ model = dict(
             common_heads=dict(
                 reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)
             ),
-            share_conv_channel=64,
-            bbox_coder=dict(
-                type="NMSFreeCoder",
-                pc_range=point_cloud_range[:2],
-                post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-                max_num=300,
-                score_threshold=0.1,
-                out_size_factor=8,
-                voxel_size=voxel_size[:2],
-                code_size=9,
-            ),
-            separate_head=dict(type="SeparateHead", init_bias=-2.19, final_kernel=3),
+            #share_conv_channel=64,
+            n_future=future_frames,
+            #separate_head=dict(type="SeparateHead", init_bias=-2.19, final_kernel=3),
             loss_cls=dict(
                 type='FocalLoss',
                 use_sigmoid=True,
@@ -199,7 +207,6 @@ model = dict(
                 loss_weight=2.0),
             loss_bbox=dict(type='L1Loss', loss_weight=0.25),
             loss_iou=dict(type='GIoULoss', loss_weight=0.0),
-            norm_bbox=True,
         ),
         cfg_map=dict(
             type="MapHead",
@@ -211,14 +218,19 @@ model = dict(
             semantic_thresh=0.25,
         ),
         cfg_motion=dict(
-            type="MotionHead",
+            type="Motion_DETR_MOT",
             task_dict={
                 "segmentation": 2,
                 "instance_center": 1,
                 "instance_offset": 2,
                 # 'instance_flow': 2,
             },
-            in_channels=256,
+            #in_channels=256,
+            hidden_dim=hidden_dim,
+            nheads=8,
+            use_topk=True,
+            topk_ratio=0.25,
+            num_queries=num_queries,
             grid_conf=motion_grid_conf,
             class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
@@ -243,21 +255,6 @@ model = dict(
             max_objs=500,
             min_radius=2,
             code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2],
-        )
-    ),
-    test_cfg=dict(
-        pts=dict(
-            pc_range=point_cloud_range[:2],
-            post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-            max_per_img=500,
-            max_pool_nms=False,
-            min_radius=[4, 12, 10, 1, 0.85, 0.175],
-            score_threshold=0.1,
-            out_size_factor=8,
-            voxel_size=voxel_size[:2],
-            pre_max_size=1000,
-            post_max_size=83,
-            out_size_factor=4,
             assigner=dict(
                 type='HungarianAssigner3D',
                 cls_cost=dict(type='FocalLossCost', weight=2.0),
@@ -267,6 +264,20 @@ model = dict(
                 pc_range=point_cloud_range)
         )
     ),
+    # test_cfg=dict(
+    #     pts=dict(
+    #         pc_range=point_cloud_range[:2],
+    #         post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+    #         max_per_img=500,
+    #         max_pool_nms=False,
+    #         min_radius=[4, 12, 10, 1, 0.85, 0.175],
+    #         score_threshold=0.1,
+    #         #out_size_factor=8,
+    #         voxel_size=voxel_size[:2],
+    #         out_size_factor=4,
+
+    #     )
+    # ),
 )
 
 dataset_type = "MTLEgoNuScenesDataset"

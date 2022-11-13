@@ -1,3 +1,4 @@
+import pickle
 from os import path as osp
 from mmdet3d.utils import collect_env
 from mmcv.runner import (HOOKS, DistSamplerSeedHook, EpochBasedRunner,
@@ -212,8 +213,8 @@ map_grid_conf = {
 
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
-
-cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
+#beverse_tiny_org motion_detr_tiny
+cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 
 
 
@@ -231,8 +232,10 @@ cfg = update_cfg(
 )
 
 
-train_data = False 
-if train_data:
+#model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
+
+train_setup = False 
+if train_setup:
     #cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
 else:
@@ -247,10 +250,10 @@ data_loaders = [build_dataloader(
 
 sample = next(iter(data_loaders[0]))
 
-assert ValueError
 
-model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
+model = build_model(cfg.model, train_cfg=cfg.get("test_cfg"))
 #wrap_fp16_model(model)
+
 
 model.cuda()
 model = MMDataParallel(model, device_ids=[0])
@@ -265,17 +268,29 @@ model = MMDataParallel(model, device_ids=[0])
 
 # sample = next(iter(data_loader))
 
+if not train_setup:
+    motion_distribution_targets = {
+        # for motion prediction
+        "motion_segmentation": sample["motion_segmentation"][0],
+        "motion_instance": sample["motion_instance"][0],
+        "instance_centerness": sample["instance_centerness"][0],
+        "instance_offset": sample["instance_offset"][0],
+        "instance_flow": sample["instance_flow"][0],
+        "future_egomotion": sample["future_egomotions"][0],
+    }
 
-# motion_distribution_targets = {
-#     # for motion prediction
-#     "motion_segmentation": sample["motion_segmentation"][0],
-#     "motion_instance": sample["motion_instance"][0],
-#     "instance_centerness": sample["instance_centerness"][0],
-#     "instance_offset": sample["instance_offset"][0],
-#     "instance_flow": sample["instance_flow"][0],
-#     "future_egomotion": sample["future_egomotions"][0],
-# }
-#raise ValueError
+    with torch.no_grad():
+        result = model(
+            return_loss=False,
+            rescale=True,
+            img_metas=sample["img_metas"],
+            img_inputs=sample["img_inputs"],
+            future_egomotions=sample["future_egomotions"],
+            motion_targets=motion_distribution_targets,
+            img_is_valid=sample["img_is_valid"][0],
+        )
+    
+    raise ValueError
 cfg.work_dir = "./"
 meta = dict()
 # log env info
@@ -308,15 +323,6 @@ runner = build_runner(
 
 runner.run(data_loaders, cfg.workflow)
 
-# with torch.no_grad():
-#     result = model(
-#         return_loss=True,
-#         #rescale=True,
-#         img_metas=sample["img_metas"],
-#         img_inputs=sample["img_inputs"],
-#         future_egomotions=sample["future_egomotions"],
-#         #motion_targets=motion_distribution_targets,
-#         img_is_valid=sample["img_is_valid"]#[0],
-#     )
+
 
 print("done")

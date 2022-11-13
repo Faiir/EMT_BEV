@@ -397,19 +397,19 @@ class MotionHead(BaseTaskHead):
         past_valid_mask = frame_valid_mask[:, : self.receptive_field]
         future_frame_mask = frame_valid_mask[:, (self.receptive_field - 1) :]
 
-        if self.sample_ignore_mode is "all_valid":
+        if self.sample_ignore_mode == "all_valid":
             # only supervise when all 7 frames are valid
             batch_valid_mask = frame_valid_mask.all(dim=1)
             future_frame_mask[~batch_valid_mask] = False
             prob_valid_mask = batch_valid_mask
 
-        elif self.sample_ignore_mode is "past_valid":
+        elif self.sample_ignore_mode == "past_valid":
             # only supervise when past 3 frames are valid
             past_valid = torch.all(past_valid_mask, dim=1)
             future_frame_mask[~past_valid] = False
             prob_valid_mask = past_valid
 
-        elif self.sample_ignore_mode is "none":
+        elif self.sample_ignore_mode == "none":
             prob_valid_mask = frame_valid_mask.any(dim=1)
 
         # segmentation

@@ -32,14 +32,15 @@ from mmcv.runner import BaseModule
 
 @HEADS.register_module()
 class Motion_DETR_MOT(BaseModule):
-    def __init__(self,DETR_ARGS ,
+    def __init__(self ,
                  receptive_field=3,
                  n_future=0,
                  future_discount = 0.95,
                  grid_conf=None,
-                class_weights=None,
-                 flow_warp=True,
-                 hidden_dim=512, nheads=8,
+                 class_weights=[1.0, 2.0],
+                flow_warp=True,
+                hidden_dim=512, 
+                nheads=8,
                 use_topk=True,
                 topk_ratio=0.25,
                 ignore_index=255,
@@ -53,7 +54,7 @@ class Motion_DETR_MOT(BaseModule):
                  task_dict=None,
                 train_cfg=None,
                 test_cfg=None,
-                 init_cfg=dict(type="Kaiming", layer="Conv2d"),
+                init_cfg=dict(type="Kaiming", layer="Conv2d"),
                  **kwargs):
         super(Motion_DETR_MOT, self).__init__(**kwargs)
         self.logger = logging.getLogger("timelogger")
@@ -66,16 +67,16 @@ class Motion_DETR_MOT(BaseModule):
         self.task_heads = nn.ModuleDict()
         
         
-        inter_channels = in_channels if inter_channels is None else inter_channels
-        for task_key, task_dim in task_dict.items():
-            self.task_heads[task_key] = nn.Sequential(
-                nn.Conv2d(
-                    in_channels, inter_channels, kernel_size=3, padding=1, bias=False
-                ),
-                nn.BatchNorm2d(inter_channels),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(inter_channels, task_dim, kernel_size=1, padding=0),
-            )
+        # inter_channels = in_channels if inter_channels is None else inter_channels
+        # for task_key, task_dim in task_dict.items():
+        #     self.task_heads[task_key] = nn.Sequential(
+        #         nn.Conv2d(
+        #             in_channels, inter_channels, kernel_size=3, padding=1, bias=False
+        #         ),
+        #         nn.BatchNorm2d(inter_channels),
+        #         nn.ReLU(inplace=True),
+        #         nn.Conv2d(inter_channels, task_dim, kernel_size=1, padding=0),
+        #     )
 
         self.bbox_attentions = []
         for _ in range(n_future):
@@ -92,46 +93,46 @@ class Motion_DETR_MOT(BaseModule):
         #     self.DETR)
         # loss functions
         # 1. loss for foreground segmentation
-        in_channels = 64 
-        if flow_warp:
-            self.flow_warp = flow_warp 
-            self.offset_conv = nn.Sequential(
-                nn.Conv2d(
-                    in_channels, in_channels, kernel_size=3, padding=1
-                ),
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(),
-            )
-            self.offset_pred = nn.Conv2d(
-                in_channels, 2, kernel_size=1, padding=0
-            )
+        # in_channels = 64 
+        # if flow_warp:
+        #     self.flow_warp = flow_warp 
+        #     self.offset_conv = nn.Sequential(
+        #         nn.Conv2d(
+        #             in_channels, in_channels, kernel_size=3, padding=1
+        #         ),
+        #         nn.BatchNorm2d(in_channels),
+        #         nn.ReLU(),
+        #     )
+        #     self.offset_pred = nn.Conv2d(
+        #         in_channels, 2, kernel_size=1, padding=0
+        #     )
 
         
         self.seg_criterion = MotionSegmentationLoss(
-            class_weights=torch.tensor(),
+            class_weights=torch.tensor(class_weights),
             use_top_k=use_topk,
             top_k_ratio=topk_ratio,
             future_discount=future_discount,
         )
 
         # 2. loss for instance center heatmap
-        self.reg_instance_center_criterion = SpatialRegressionLoss(
-            norm=2,
-            future_discount=future_discount,
-        )
+        # self.reg_instance_center_criterion = SpatialRegressionLoss(
+        #     norm=2,
+        #     future_discount=future_discount,
+        # )
 
-        self.cls_instance_center_criterion = GaussianFocalLoss(
-            focal_cfg=focal_cfg,
-            ignore_index=ignore_index,
-            future_discount=future_discount,
-        )
+        # self.cls_instance_center_criterion = GaussianFocalLoss(
+        #     focal_cfg=focal_cfg,
+        #     ignore_index=ignore_index,
+        #     future_discount=future_discount,
+        # )
 
-        # 3. loss for instance offset
-        self.reg_instance_offset_criterion = SpatialRegressionLoss(
-            norm=1,
-            future_discount=future_discount,
-            ignore_index=ignore_index,
-        )
+        # # 3. loss for instance offset
+        # self.reg_instance_offset_criterion = SpatialRegressionLoss(
+        #     norm=1,
+        #     future_discount=future_discount,
+        #     ignore_index=ignore_index,
+        # )
 
         # 4. loss for instance flow
         self.reg_instance_flow_criterion = SpatialRegressionLoss(
@@ -139,11 +140,11 @@ class Motion_DETR_MOT(BaseModule):
             future_discount=future_discount,
             ignore_index=ignore_index,
         )
-
+        self.prob_on_foreground = False
         self.probabilistic_loss = ProbabilisticLoss(foreground=self.prob_on_foreground)
 
         # pass prediction heads here -> maybe take out the seg-head and pass it as object to the builder 
-        self.deformable_detr = build_seg_detr(DETR_ARGS, self.transformer, self.backbone)
+        #self.deformable_detr = build_seg_detr(DETR_ARGS, self.transformer, self.backbone)
         
         self.loss_weights = loss_weights
         self.ignore_index = ignore_index
@@ -155,7 +156,7 @@ class Motion_DETR_MOT(BaseModule):
         self.out_segmentation = torch.nn.Conv2d(num_queries,1, 3, padding=1)
         self.out_instance_flow = torch.nn.Conv2d(num_queries, 2, 3, padding=1)
         
-        self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
+        #self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
     def forward(self,  hs, reference, seg_memory, seg_mask, pyramid_bev_feats, targets=None, noise=None):
         """

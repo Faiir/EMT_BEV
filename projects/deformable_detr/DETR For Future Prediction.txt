@@ -2,7 +2,8 @@ DETR For Future Prediction
 
 
 TODO:
-  Correct Losses --
+  Correct Losses 
+    Losses Motion 
   Correct Labels --
     Future BBoxes > Später 
     Future Segmentation > Später 
@@ -17,15 +18,24 @@ TODO:
     -> Predict / Regress flow between detected Centers somehow?
         Make consistent (evtl - mal schauen)
 
+  Loss currently has outputs from every layer? 
+
 
 list of list 
   N x 9
 
 
-transformer 
-img_neck 
-temporal_model
-img_backbone
+OUT DETR CURRENTLY 
+
+torch.Size([6, 2, 300, 1024])
+torch.Size([2, 300, 2])
+torch.Size([2, 1024, 13, 13])
+torch.Size([2, 13, 13])
+
+
+
+torch.Size([2, 300, 2])
+
 
 future instance segmentation 
 

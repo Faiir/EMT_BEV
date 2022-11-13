@@ -106,15 +106,15 @@ class PositionEmbeddingLearned(nn.Module):
         return pos
 
 
-def build_position_encoding(args):
-    N_steps = args.hidden_dim // 2
-    if args.position_embedding in ('v2', 'sine'):
+def build_position_encoding(position_embedding, hidden_dim):
+    N_steps = hidden_dim // 2
+    if position_embedding in ('v2', 'sine'):
         # TODO find a better way of exposing other arguments
         position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
-    elif args.position_embedding in ('v3', 'learned'):
+    elif position_embedding in ('v3', 'learned'):
         position_embedding = PositionEmbeddingLearned(N_steps)
     else:
-        raise ValueError(f"not supported {args.position_embedding}")
+        raise ValueError(f"not supported {position_embedding}")
 
     return position_embedding
 
@@ -327,7 +327,7 @@ class ResNet(nn.Module):
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None, channel_list=[64, 128, 256, 512], dont_use_bev_input=False):
         super(ResNet, self).__init__()
-        print("IN RESNET")
+        
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -351,7 +351,7 @@ class ResNet(nn.Module):
             self.relu = nn.ReLU(inplace=True)
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         else:
-            print("USING BEV INPUT 64 Input Channels!")
+            
             self.conv1 = nn.Conv2d(64, self.inplanes, kernel_size=3, stride=1, padding=1,
                                    bias=False)
             self.bn1 = norm_layer(self.inplanes)
@@ -417,20 +417,20 @@ class ResNet(nn.Module):
 
     def _forward_impl(self, x):
         # See note [TorchScript super()]
-        print(f"Input: {x.shape =}")
+        #print(f"Input: {x.shape =}")
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        print(f"After Stem: {x.shape =}")
+        #print(f"After Stem: {x.shape =}")
         x = self.layer1(x)
-        print(f"After Layer 1: {x.shape =}")
+        #print(f"After Layer 1: {x.shape =}")
         x = self.layer2(x)
-        print(f"After Layer 2: {x.shape =}")
+        #print(f"After Layer 2: {x.shape =}")
         x = self.layer3(x)
-        print(f"After Layer 3: {x.shape =}")
+        #print(f"After Layer 3: {x.shape =}")
         x = self.layer4(x)
-        print(f"After Layer 4: {x.shape =}")
+        #print(f"After Layer 4: {x.shape =}")
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
@@ -448,7 +448,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
         # state_dict = load_state_dict_from_url(model_urls[arch],
         #                                       progress=progress)
         #model.load_state_dict(state_dict)
-        print("no pretrained model allowed :>")
+        #print("no pretrained model allowed :>")
         pass
 
     return model
@@ -572,7 +572,7 @@ class Backbone(BackboneBase):
                  dcn: bool = False):
         norm_layer = FrozenBatchNorm2d
         if checkpoint or dcn:
-            print('Training with checkpoint to save GPU memory.')
+            #print('Training with checkpoint to save GPU memory.')
             #from .resnet import resnet50, resnet101
             if dcn:
                 print('Training with dcn.')
@@ -630,16 +630,18 @@ class Joiner(nn.Sequential):
         return out, pos
 
 
-def build_backbone(args):
-    position_embedding = build_position_encoding(args)
+def build_backbone(backbone='resnet18', layers=[
+                   2, 2, 2, 2], return_feature_layers=True, position_embedding='sine', num_pos_feats=128,hidden_dim=1024, dilation=[
+                                    False, False, False]):
+    position_embedding = build_position_encoding(position_embedding, hidden_dim)
     train_backbone = True #args.lr_backbone > 0
     # return_interm_layers = args.masks or (args.num_feature_levels > 1)
     return_interm_layers = True #args.num_feature_levels > 1
     dilation= [False,False,False,False]
-    backbone = Backbone(args.backbone, train_backbone,
-                        return_interm_layers, args.dilation)
+    backbone = Backbone(backbone, train_backbone,
+                        return_interm_layers, dilation)
     model = Joiner(backbone, position_embedding)
-    return model, backbone
+    return model#, backbone
 
 
 class DeformableTransformer(nn.Module):
@@ -678,7 +680,7 @@ class DeformableTransformer(nn.Module):
         else:
             self.reference_points = nn.Linear(d_model, 2)
 
-        print(f'Training with {activation}.')
+        #print(f'Training with {activation}.')
 
         self._reset_parameters()
 
@@ -787,19 +789,18 @@ class DeformableTransformer(nn.Module):
             (1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
-        print(
-            f"src_flatten {src_flatten.shape = } spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } lvl_pos_embed_flatten  {lvl_pos_embed_flatten.shape = } mask_flatten  {mask_flatten.shape = }")
+        #print( f"src_flatten {src_flatten.shape = } spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } lvl_pos_embed_flatten  {lvl_pos_embed_flatten.shape = } mask_flatten  {mask_flatten.shape = }")
 
         # encoder
         memory = self.encoder(src_flatten, spatial_shapes, level_start_index,
                               valid_ratios, lvl_pos_embed_flatten, mask_flatten)
-        print(f"{memory.shape =}")
+        #print(f"{memory.shape =}")
         seg_memory, seg_mask = memory[:, level_start_index[-1]
             :, :], mask_flatten[:, level_start_index[-1]:]
-        print(f"{seg_memory.shape =} {seg_mask.shape =}")
+        #print(f"{seg_memory.shape =} {seg_mask.shape =}")
         seg_memory = seg_memory.permute(0, 2, 1).view(bs, c, h, w)
         seg_mask = seg_mask.view(bs, h, w)
-        print(f"after Permute/View {seg_memory.shape =} {seg_mask.shape =}")
+        #print(f"after Permute/View {seg_memory.shape =} {seg_mask.shape =}")
         # prepare input for decoder
         bs, _, c = memory.shape
         if self.two_stage:
@@ -830,7 +831,7 @@ class DeformableTransformer(nn.Module):
             reference_points = self.reference_points(query_embed).sigmoid()
             init_reference_out = reference_points
 
-        print(f"tgt {tgt.shape = } reference_points  {reference_points.shape = }  memory  {memory.shape = }  spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } query_embed  {query_embed.shape = } mask_flatten  {mask_flatten.shape = }")
+        #print(f"tgt {tgt.shape = } reference_points  {reference_points.shape = }  memory  {memory.shape = }  spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } query_embed  {query_embed.shape = } mask_flatten  {mask_flatten.shape = }")
 
         # decoder
         hs, inter_references = self.decoder(tgt, reference_points, memory,
@@ -876,13 +877,13 @@ class DeformableTransformerEncoderLayer(nn.Module):
         # self attention
         src2 = self.self_attn(self.with_pos_embed(
             src, pos), reference_points, src, spatial_shapes, level_start_index, padding_mask)
-        print(f"src2 shape {src2.shape = }")
+        #print(f"src2 shape {src2.shape = }")
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
         # ffn
         src = self.forward_ffn(src)
-        print(f"Transformer encoder output shape {src.shape = }")
+        #print(f"Transformer encoder output shape {src.shape = }")
         return src
 
 
@@ -927,8 +928,8 @@ class DeformableTransformerDecoderLayer(nn.Module):
         super().__init__()
 
         # cross attention
-        print(
-            f"Constructed Decoder Layer with: {d_model = },  {n_levels = },  {n_heads = } ,  {n_points = } ")
+        # print(
+        #     f"Constructed Decoder Layer with: {d_model = },  {n_levels = },  {n_heads = } ,  {n_points = } ")
         self.cross_attn = MSDeformAttn(d_model, n_levels, n_heads, n_points)
         self.dropout1 = nn.Dropout(dropout)
         self.norm1 = nn.LayerNorm(d_model)
@@ -959,11 +960,11 @@ class DeformableTransformerDecoderLayer(nn.Module):
 
     def forward(self, tgt, query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None):
         # self attention
-        print("decoder")
+        #print("decoder")
         q = k = self.with_pos_embed(tgt, query_pos)
         tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(
             0, 1), tgt.transpose(0, 1))[0].transpose(0, 1)
-        print(f"Self Attn: {tgt2.shape =}")
+        #print(f"Self Attn: {tgt2.shape =}")
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -971,13 +972,13 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt2 = self.cross_attn(self.with_pos_embed(tgt, query_pos),
                                reference_points,
                                src, src_spatial_shapes, level_start_index, src_padding_mask)
-        print(f"Cross Attn: {tgt2.shape =}")
+        #print(f"Cross Attn: {tgt2.shape =}")
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
         # ffn
         tgt = self.forward_ffn(tgt)
-        print(f"Out Decoder: {tgt.shape =}")
+        #print(f"Out Decoder: {tgt.shape =}")
         return tgt
 
 
@@ -1007,7 +1008,7 @@ class DeformableTransformerDecoder(nn.Module):
                                                           :, None] * src_valid_ratios[:, None]
             output = layer(output, query_pos, reference_points_input, src,
                            src_spatial_shapes, src_level_start_index, src_padding_mask)
-            print(f"Output Decoder {output.shape = }")
+            #print(f"Output Decoder {output.shape = }")
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:
                 tmp = self.bbox_embed[lid](output)
@@ -1140,7 +1141,7 @@ class DeformableDETRsegm(nn.Module):
         self.detr = detr
 
         if freeze_detr:
-            print('Training with freezing detection branch of deformable detr.')
+            #print('Training with freezing detection branch of deformable detr.')
             for p in self.parameters():
                 p.requires_grad_(False)
 
@@ -1152,7 +1153,7 @@ class DeformableDETRsegm(nn.Module):
             in_channels_list = [512, 256, 128, 64]
         else:
             in_channels_list = [1024, 512, 256]
-        print(f"{in_channels_list = }")
+        #print(f"{in_channels_list = }")
         self.mask_head = MaskHeadSmallConv(
             hidden_dim + nheads, in_channels_list, hidden_dim)  # [1024,512, 256, 128]
         input_proj_list = []
@@ -1161,8 +1162,8 @@ class DeformableDETRsegm(nn.Module):
             input_proj_list.append(
                 nn.Conv2d(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1))
         self.seg_input_proj = nn.ModuleList(input_proj_list)
-        print(self.seg_input_proj)
-        print(self.mask_head)
+        #print(self.seg_input_proj)
+        #print(self.mask_head)
 
     def forward(self, inputs, masks):
         """ The forward expects a inputs and masks, which consists of:
@@ -1191,25 +1192,19 @@ class DeformableDETRsegm(nn.Module):
         for l, feat in enumerate(features):
 
             src, mask = feat
-            print(f"{l =}")
-            print(f"{src.shape = }")
-            print(f"{self.detr.input_proj[l]}")
+
             proj_src = self.detr.input_proj[l](src)
-            print(f"{proj_src.shape = }")
+
             srcs.append(proj_src)
             masks.append(mask)
             assert mask is not None
         if self.detr.num_feature_levels > len(srcs):
             _len_srcs = len(srcs)
-            print(f"{_len_srcs =}")
-            for l in range(_len_srcs, self.detr.num_feature_levels):
-                print(f"{l =}")
+            
+            for l in range(_len_srcs, self.detr.num_feature_levels):     
                 if l == _len_srcs:
-                    print(self.detr.input_proj[l])
-                    print(features[-1][0].shape)
                     src = self.detr.input_proj[l](features[-1][0])
                 else:
-                    print(srcs[-1].shape)
                     src = self.detr.input_proj[l](srcs[-1])
                 m = mask_input
                 mask = F.interpolate(
@@ -1226,7 +1221,7 @@ class DeformableDETRsegm(nn.Module):
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact, seg_memory, seg_mask = self.detr.transformer(
             srcs, masks, pos, query_embeds)
 
-        print(f"hs {hs.shape = } init_reference  {init_reference.shape = }  enc_outputs_class  {enc_outputs_class = } enc_outputs_coord_unact  {enc_outputs_coord_unact = } seg_memory  {seg_memory.shape = } seg_mask  {seg_mask.shape = }")
+        #print(f"hs {hs.shape = } init_reference  {init_reference.shape = }  enc_outputs_class  {enc_outputs_class = } enc_outputs_coord_unact  {enc_outputs_coord_unact = } seg_memory  {seg_memory.shape = } seg_mask  {seg_mask.shape = }")
 
         outputs_classes = []
         outputs_coords = []
@@ -1249,9 +1244,6 @@ class DeformableDETRsegm(nn.Module):
         outputs_class = torch.stack(outputs_classes)
         outputs_coord = torch.stack(outputs_coords)
 
-        print(
-            f"output_class shape {outputs_class.shape = }, outputs_coord {outputs_coord.shape = }")
-
         out = {'pred_logits': outputs_class[-1],
                'pred_boxes': outputs_coord[-1]}
         if self.detr.aux_loss:
@@ -1265,12 +1257,7 @@ class DeformableDETRsegm(nn.Module):
 
         # FIXME h_boxes takes the last one computed, keep this in mind
         bbox_mask = self.bbox_attention(hs[-1], seg_memory, mask=seg_mask)
-        print(
-            f"bbox_mask shape {bbox_mask.shape = }")
 
-        for f in features:
-            print(f[0].shape)
-        print(self.seg_input_proj)
         input_projections = [(features[-1][0]),
                              (features[-2][0]), (features[-3][0]), features[-4][0]]  # [self.seg_input_proj[0](features[-1][0]),
         #                      self.seg_input_proj[1](features[-2][0]), self.seg_input_proj[2](features[-3][0])]
@@ -1281,12 +1268,8 @@ class DeformableDETRsegm(nn.Module):
         # feature pyramid stuff <-- this is where the shapes are relevant
         seg_masks = self.mask_head(srcs[-1], bbox_mask, input_projections)
 
-        print(
-            f"seg_masks shape {seg_masks.shape = }")
         outputs_seg_masks = seg_masks.view(
             bs, self.detr.num_queries, seg_masks.shape[-2], seg_masks.shape[-1])
-        print(
-            f"outputs_seg_masks shape {outputs_seg_masks.shape = }")
 
         out["pred_masks"] = outputs_seg_masks
         return out
@@ -1308,8 +1291,6 @@ class MaskHeadSmallConv(nn.Module):
 
         inter_dims = [dim, context_dim // 2, context_dim // 4,
                       context_dim // 8, context_dim // 16, context_dim // 64, context_dim // 128]
-        print(
-            f"MaskedHeadSmallConv: {dim =}, {fpn_dims = }, {context_dim = }, {inter_dims = }")
 
         self.lay1 = torch.nn.Conv2d(dim, dim, 3, padding=1)
         self.gn1 = torch.nn.GroupNorm(8, dim)
@@ -1352,10 +1333,6 @@ class MaskHeadSmallConv(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x, bbox_mask, fpns):
-        print(
-            f"Input MHead SegConv Shape {x.shape = }, bbox_mask {bbox_mask.shape = },")
-        for f in fpns:
-            print(f"features from image {f.shape}")
 
         def expand(tensor, length):
             return tensor.unsqueeze(1).repeat(1, int(length), 1, 1, 1).flatten(0, 1)
@@ -1399,7 +1376,7 @@ class MaskHeadSmallConv(nn.Module):
         #print(f"after adapter3: {cur_fpn.shape = }")
         if cur_fpn.size(0) != x.size(0):
             cur_fpn = expand(cur_fpn, x.size(0) / cur_fpn.size(0))
-            print(f"cur_fpn.size(0) != x.size(0): {cur_fpn.shape = }")
+            #print(f"cur_fpn.size(0) != x.size(0): {cur_fpn.shape = }")
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         #print(f"Interpolutaion with expan: {x.shape = }")
         x = self.lay5(x)

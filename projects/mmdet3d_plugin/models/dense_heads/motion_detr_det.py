@@ -27,7 +27,6 @@ from mmdet.models.utils import build_transformer
 from mmdet.models import HEADS, build_loss
 from mmdet.models.dense_heads.anchor_free_head import AnchorFreeHead
 from mmdet.models.utils.transformer import inverse_sigmoid
-from mmdet3d.core.bbox.coders import build_bbox_coder
 from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
 import numpy as np
 from mmcv.cnn import xavier_init, constant_init, kaiming_init
@@ -87,11 +86,12 @@ class Motion_DETR_DET(BaseModule):
                  in_channels=[128],
                  tasks=None,
                  n_future=3, 
+                 hidden_dim = 512,
                  test_cfg=None,
-                 bbox_coder=None,
                  common_heads=dict(), 
                  group_reg_dims=(2, 1, 3, 2, 2),  # xy, z, size, rot, velo
-                 
+                 code_weights=None,
+                 num_reg_fcs=2,
                  loss_cls=dict(
                      type='CrossEntropyLoss',
                      bg_cls_weight=0.1,
@@ -110,20 +110,35 @@ class Motion_DETR_DET(BaseModule):
                  init_cfg=None):
         super().__init__(init_cfg)
         
-        self.bbox_coder = build_bbox_coder(bbox_coder)
-        self.pc_range = self.bbox_coder.pc_range
-        
+        self.group_reg_dims = group_reg_dims
         assigner = train_cfg['assigner']
         self.assigner = build_assigner(assigner)
         # DETR sampling=False, so use PseudoSampler
         sampler_cfg = dict(type='PseudoSampler')
         self.sampler = build_sampler(sampler_cfg, context=self)
         self.n_future = n_future 
+        self.n_decoder_layer = 6
         self.classes = None 
+        if code_weights is not None:
+            self.code_weights = code_weights
+        else:
+            self.code_weights = [1.0, 1.0, 1.0,
+                                 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2]
+        self.bg_cls_weight = 0
+
+        self.num_classes = 10 
+        self.embed_dims = hidden_dim 
         self.loss_cls = build_loss(loss_cls)
         self.loss_bbox = build_loss(loss_bbox)
         self.loss_iou = build_loss(loss_iou)
-    
+        self.num_reg_fcs = num_reg_fcs
+        self.normedlinear = False 
+        self.code_size = 10 
+        if self.loss_cls.use_sigmoid:
+            self.cls_out_channels = self.num_classes
+        else:
+            self.cls_out_channels = self.num_classes + 1
+        self.init_layers()
     def init_layers(self):
         cls_branch = []
         for _ in range(self.num_reg_fcs):
@@ -140,14 +155,21 @@ class Motion_DETR_DET(BaseModule):
         
         
         reg_branchs = []
-        for _ in range(1):
-            reg_branchs.append(RegLayer(
-                self.embed_dims, self.num_reg_fcs, self.group_reg_dims))
+        
+        reg_branch = []
+        for _ in range(self.num_reg_fcs):
+                reg_branch.append(Linear(self.embed_dims, self.embed_dims))
+                reg_branch.append(nn.ReLU())
+        reg_branch.append(Linear(self.embed_dims, self.code_size))
+        reg_branch = nn.Sequential(*reg_branch)
+        
+        # reg_branch =  RegLayer(
+        #         self.embed_dims, self.num_reg_fcs, self.group_reg_dims)
         
         self.cls_branches = nn.ModuleList(
-            [copy.deepcopy(fc_cls) for _ in range(self.n_future)])
-        self.reg_branches = nn.ModuleList(reg_branchs)
-            #[copy.deepcopy(reg_branch) for _ in range(self.num_pred)])
+            [copy.deepcopy(fc_cls) for _ in range(self.n_decoder_layer)])
+        self.reg_branches = nn.ModuleList(
+            [copy.deepcopy(reg_branch) for _ in range(self.n_decoder_layer)])
     
     
     def init_weights(self):
@@ -157,19 +179,38 @@ class Motion_DETR_DET(BaseModule):
         pass 
     
     def forward(self, decoder_output, references):
-        outputs_classes = []
-        outputs_coords = []
-        reference = inverse_sigmoid(references.clone())
+        decoder_output = torch.nan_to_num(decoder_output)
+        # outputs_classes = []
+        # outputs_coords = []
+        #reference = inverse_sigmoid(references.clone())
         #for n in range(self.n_future):
-        outputs_class = self.cls_branches 
-        tmp = self.reg_branches(decoder_output)
-        # add references to xy info - rest doesn't need references accoridng to petr 
-        tmp[..., 0:2] += reference[..., 0:2]
-        tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
-        outputs_coord = tmp
+        # outputs_class = self.cls_branches()
+        # tmp = self.reg_branches(decoder_output)
+        # # add references to xy info - rest doesn't need references accoridng to petr 
+        # tmp[..., 0:2] += reference[..., 0:2]
+        # tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
+        # outputs_coord = tmp
         #outputs_classes.append(outputs_class)
         #outputs_coords.append(outputs_coord)
-    
+        
+        outputs_classes = []
+        outputs_coords = []
+        for lvl in range(decoder_output.shape[0]):
+            reference = inverse_sigmoid(references.clone())
+            #assert reference.shape[-1] == 3
+            outputs_class = self.cls_branches[lvl](decoder_output[lvl])
+            print(f"{outputs_class.shape = }")
+            tmp = self.reg_branches[lvl](decoder_output[lvl])
+            print(f"{tmp.shape = }")
+            tmp[..., 0:2] += reference[..., 0:2]
+            tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
+            # tmp[..., 4:5] += reference[..., 2:3]
+            # tmp[..., 4:5] = tmp[..., 4:5].sigmoid()
+
+            outputs_coord = tmp
+            outputs_classes.append(outputs_class)
+            outputs_coords.append(outputs_coord)
+
         outs = {
             'all_cls_scores': outputs_class,
             'all_bbox_preds': outputs_coord,
@@ -233,32 +274,32 @@ class Motion_DETR_DET(BaseModule):
             f'{self.__class__.__name__} only supports ' \
             f'for gt_bboxes_ignore setting to None.'
 
-        losses_clss, losses_bboxs = [], []
-        for n in self.n_future():
-            all_cls_scores = preds_dicts['all_cls_scores']
-            all_bbox_preds = preds_dicts['all_bbox_preds']
-            enc_cls_scores = preds_dicts['enc_cls_scores']
-            enc_bbox_preds = preds_dicts['enc_bbox_preds']
-            # print(gt_labels_list)
-            num_dec_layers = len(all_cls_scores)
-            device = gt_labels_list[0].device
-            gt_bboxes_list = [torch.cat(
-                (gt_bboxes.gravity_center, gt_bboxes.tensor[:, 3:]),
-                dim=1).to(device) for gt_bboxes in gt_bboxes_list]
+        #losses_clss, losses_bboxs = [], []
+        #for n in self.n_future():
+        all_cls_scores = preds_dicts['all_cls_scores']
+        all_bbox_preds = preds_dicts['all_bbox_preds']
+        enc_cls_scores = preds_dicts['enc_cls_scores']
+        enc_bbox_preds = preds_dicts['enc_bbox_preds']
+        # print(gt_labels_list)
+        num_dec_layers = len(all_cls_scores)
+        device = gt_labels_list[0].device
+        gt_bboxes_list = [torch.cat(
+            (gt_bboxes.gravity_center, gt_bboxes.tensor[:, 3:]),
+            dim=1).to(device) for gt_bboxes in gt_bboxes_list]
 
-            all_gt_bboxes_list = [gt_bboxes_list for _ in range(num_dec_layers)]
-            all_gt_labels_list = [gt_labels_list for _ in range(num_dec_layers)]
-            all_gt_bboxes_ignore_list = [
-                gt_bboxes_ignore for _ in range(num_dec_layers)
-            ]
+        all_gt_bboxes_list = [gt_bboxes_list for _ in range(num_dec_layers)]
+        all_gt_labels_list = [gt_labels_list for _ in range(num_dec_layers)]
+        all_gt_bboxes_ignore_list = [
+            gt_bboxes_ignore for _ in range(num_dec_layers)
+        ]
 
-            losses_cls, losses_bbox = multi_apply(
-                self.loss_single, all_cls_scores, all_bbox_preds,
-                all_gt_bboxes_list, all_gt_labels_list,
-                all_gt_bboxes_ignore_list)
-            
-            losses_clss.append(losses_cls)
-            losses_bboxs.append(losses_bboxs)
+        losses_cls, losses_bbox = multi_apply(
+            self.loss_single, all_cls_scores, all_bbox_preds,
+            all_gt_bboxes_list, all_gt_labels_list,
+            all_gt_bboxes_ignore_list)
+        
+        # losses_clss.append(losses_cls)
+        # losses_bboxs.append(losses_bboxs)
 
         loss_dict = dict()
         # loss of proposal generated from encode feature map.
@@ -269,7 +310,7 @@ class Motion_DETR_DET(BaseModule):
             ]
             enc_loss_cls, enc_losses_bbox = \
                 self.loss_single(enc_cls_scores, enc_bbox_preds,
-                                 gt_bboxes_list, binary_labels_list, gt_bboxes_ignore)
+                                gt_bboxes_list, binary_labels_list, gt_bboxes_ignore)
             loss_dict['enc_loss_cls'] = enc_loss_cls
             loss_dict['enc_loss_bbox'] = enc_losses_bbox
 
@@ -280,7 +321,7 @@ class Motion_DETR_DET(BaseModule):
         # loss from other decoder layers
         num_dec_layer = 0
         for loss_cls_i, loss_bbox_i in zip(losses_cls[:-1],
-                                           losses_bbox[:-1]):
+                                        losses_bbox[:-1]):
             loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
             loss_dict[f'd{num_dec_layer}.loss_bbox'] = loss_bbox_i
             num_dec_layer += 1
@@ -404,7 +445,9 @@ class Motion_DETR_DET(BaseModule):
                     bbox_preds,
                     gt_bboxes_list,
                     gt_labels_list,
-                    gt_bboxes_ignore_list=None):
+                    gt_bboxes_ignore_list=None,
+                    pc_range=None
+                    ):
         """"Loss function for outputs from a single decoder layer of a single
         feature level.
         Args:
@@ -456,7 +499,7 @@ class Motion_DETR_DET(BaseModule):
 
         # regression L1 loss
         bbox_preds = bbox_preds.reshape(-1, bbox_preds.size(-1))
-        normalized_bbox_targets = normalize_bbox(bbox_targets, self.pc_range)
+        normalized_bbox_targets = normalize_bbox(bbox_targets, pc_range)
         isnotnan = torch.isfinite(normalized_bbox_targets).all(dim=-1)
         bbox_weights = bbox_weights * self.code_weights
 
@@ -467,27 +510,3 @@ class Motion_DETR_DET(BaseModule):
         loss_bbox = torch.nan_to_num(loss_bbox)
         return loss_cls, loss_bbox
     
-    @force_fp32(apply_to=('preds_dicts'))
-    def get_bboxes(self, preds_dicts, img_metas, rescale=False):
-        """Generate bboxes from bbox head predictions.
-        Args:
-            preds_dicts (tuple[list[dict]]): Prediction results.
-            img_metas (list[dict]): Point cloud and image's meta info.
-        Returns:
-            list[dict]: Decoded bbox, scores and labels after nms.
-        """
-        preds_dicts = self.bbox_coder.decode(preds_dicts)
-        num_samples = len(preds_dicts)
-        future_list = []
-        for n in range(self.n_future):
-            ret_list = []
-            for i in range(num_samples):
-                preds = preds_dicts[i]
-                bboxes = preds['bboxes']
-                bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
-                bboxes = img_metas[i]['box_type_3d'](bboxes, bboxes.size(-1))
-                scores = preds['scores']
-                labels = preds['labels']
-                ret_list.append([bboxes, scores, labels])
-            future_list.append(ret_list)
-        return ret_list
