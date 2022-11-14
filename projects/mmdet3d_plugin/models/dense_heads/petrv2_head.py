@@ -811,6 +811,7 @@ class PETRv2Head(AnchorFreeHead):
         Returns:
             list[dict]: Decoded bbox, scores and labels after nms.
         """
+        
         preds_dicts = self.bbox_coder.decode(preds_dicts)
         num_samples = len(preds_dicts)
 

@@ -85,6 +85,7 @@ class Motion_DETR_DET(BaseModule):
     def __init__(self,         
                  in_channels=[128],
                  tasks=None,
+                 num_classes=10,
                  n_future=3, 
                  hidden_dim = 512,
                  test_cfg=None,
@@ -107,7 +108,8 @@ class Motion_DETR_DET(BaseModule):
                          reg_cost=dict(type='BBoxL1Cost', weight=5.0),
                          iou_cost=dict(
                              type='IoUCost', iou_mode='giou', weight=2.0))),
-                 init_cfg=None):
+                 init_cfg=None,
+                 **kwargs):
         super().__init__(init_cfg)
         
         self.group_reg_dims = group_reg_dims
@@ -119,13 +121,42 @@ class Motion_DETR_DET(BaseModule):
         self.n_future = n_future 
         self.n_decoder_layer = 6
         self.classes = None 
+        if 'code_size' in kwargs:
+            self.code_size = kwargs['code_size']
+        else:
+            self.code_size = 10
+        
         if code_weights is not None:
             self.code_weights = code_weights
         else:
             self.code_weights = [1.0, 1.0, 1.0,
                                  1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2]
+        self.code_weights = self.code_weights[:self.code_size]
+        
+        self.code_weights = nn.Parameter(torch.tensor(
+            self.code_weights, requires_grad=False), requires_grad=False)
         self.bg_cls_weight = 0
-
+        
+        class_weight = loss_cls.get('class_weight', None)
+        if class_weight is not None and (self.__class__ is Motion_DETR_DET):
+            assert isinstance(class_weight, float), 'Expected ' \
+                'class_weight to have type float. Found ' \
+                f'{type(class_weight)}.'
+            # NOTE following the official DETR rep0, bg_cls_weight means
+            # relative classification weight of the no-object class.
+            bg_cls_weight = loss_cls.get('bg_cls_weight', class_weight)
+            assert isinstance(bg_cls_weight, float), 'Expected ' \
+                'bg_cls_weight to have type float. Found ' \
+                f'{type(bg_cls_weight)}.'
+            class_weight = torch.ones(num_classes + 1) * class_weight
+            # set background class as the last indice
+            class_weight[num_classes] = bg_cls_weight
+            loss_cls.update({'class_weight': class_weight})
+            if 'bg_cls_weight' in loss_cls:
+                loss_cls.pop('bg_cls_weight')
+            self.bg_cls_weight = bg_cls_weight
+        
+        self.sync_cls_avg_factor = False # TODO 
         self.num_classes = 10 
         self.embed_dims = hidden_dim 
         self.loss_cls = build_loss(loss_cls)
@@ -211,9 +242,12 @@ class Motion_DETR_DET(BaseModule):
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
 
+        all_cls_scores = torch.stack(outputs_classes)
+        all_bbox_preds = torch.stack(outputs_coords)
+    
         outs = {
-            'all_cls_scores': outputs_class,
-            'all_bbox_preds': outputs_coord,
+            'all_cls_scores': all_cls_scores,
+            'all_bbox_preds': all_bbox_preds,
             'enc_cls_scores': None,
             'enc_bbox_preds': None,
         }
@@ -243,6 +277,7 @@ class Motion_DETR_DET(BaseModule):
              gt_bboxes_list,
              gt_labels_list,
              preds_dicts,
+             pc_range,
              gt_bboxes_ignore=None):
         """"Loss function.
         Args:
@@ -295,7 +330,7 @@ class Motion_DETR_DET(BaseModule):
 
         losses_cls, losses_bbox = multi_apply(
             self.loss_single, all_cls_scores, all_bbox_preds,
-            all_gt_bboxes_list, all_gt_labels_list,
+            all_gt_bboxes_list, all_gt_labels_list,pc_range,
             all_gt_bboxes_ignore_list)
         
         # losses_clss.append(losses_cls)
@@ -445,8 +480,9 @@ class Motion_DETR_DET(BaseModule):
                     bbox_preds,
                     gt_bboxes_list,
                     gt_labels_list,
+                    pc_range,
                     gt_bboxes_ignore_list=None,
-                    pc_range=None
+                    
                     ):
         """"Loss function for outputs from a single decoder layer of a single
         feature level.
@@ -478,7 +514,7 @@ class Motion_DETR_DET(BaseModule):
         label_weights = torch.cat(label_weights_list, 0)
         bbox_targets = torch.cat(bbox_targets_list, 0)
         bbox_weights = torch.cat(bbox_weights_list, 0)
-
+        
         # classification loss
         cls_scores = cls_scores.reshape(-1, self.cls_out_channels)
         # construct weighted avg_factor to match with the official DETR repo

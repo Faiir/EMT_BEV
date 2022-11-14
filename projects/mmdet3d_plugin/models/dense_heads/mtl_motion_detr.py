@@ -251,8 +251,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
         if self.task_enable.get("3dod", False):
             det_loss_dict = self.task_decoders["3dod"].loss(
-                gt_bboxes_3d=targets["gt_bboxes_3d"],
-                gt_labels_3d=targets["gt_labels_3d"],
+                gt_bboxes_list=targets["gt_bboxes_3d"],
+                gt_labels_list=targets["gt_labels_3d"],
                 preds_dicts=predictions["3dod"],
                 pc_range=self.pc_range
             )
@@ -377,7 +377,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         det_feat = self.task_feat_cropper["3dod"](bev_feats)
         task_feat = self.taskfeat_encoders["3dod"]([det_feat])
         b,c,h,w = task_feat.shape
-        task_mask = mask = torch.ones(
+        task_mask = mask = torch.zeros(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
         features, pos = self.backbone(task_feat, task_mask)
         
@@ -458,15 +458,15 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         preds_dicts = self.bbox_coder.decode(preds_dicts)
         num_samples = len(preds_dicts)
         future_list = []
-        for n in range(self.n_future):
-            ret_list = []
-            for i in range(num_samples):
-                preds = preds_dicts[i]
-                bboxes = preds['bboxes']
-                bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
-                bboxes = img_metas[i]['box_type_3d'](bboxes, bboxes.size(-1))
-                scores = preds['scores']
-                labels = preds['labels']
-                ret_list.append([bboxes, scores, labels])
-            future_list.append(ret_list)
+        
+        ret_list = []
+        for i in range(num_samples):
+            preds = preds_dicts[i]
+            bboxes = preds['bboxes']
+            bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 5] * 0.5
+            bboxes = img_metas[i]['box_type_3d'](bboxes, bboxes.size(-1))
+            scores = preds['scores']
+            labels = preds['labels']
+            ret_list.append([bboxes, scores, labels])
+            
         return ret_list

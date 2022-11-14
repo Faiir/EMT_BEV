@@ -50,6 +50,7 @@ class Petr3D(MVXTwoStageDetector):
         self.grid_mask = GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
         self.use_grid_mask = use_grid_mask
 
+    @torch.no_grad()
     def extract_img_feat(self, img, img_metas):
         """Extract features of images."""
         # print(img[0].size())

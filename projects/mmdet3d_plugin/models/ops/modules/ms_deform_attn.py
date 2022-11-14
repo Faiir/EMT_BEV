@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_, constant_
 
 from ..functions import MSDeformAttnFunction
-
+from mmcv.runner import force_fp32
 
 def _is_power_of_2(n):
     if (not isinstance(n, int)) or (n < 0):
@@ -27,6 +27,9 @@ def _is_power_of_2(n):
     return (n & (n-1) == 0) and n != 0
 
 
+
+
+ 
 class MSDeformAttn(nn.Module):
     def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4):
         """
@@ -75,6 +78,8 @@ class MSDeformAttn(nn.Module):
         xavier_uniform_(self.output_proj.weight.data)
         constant_(self.output_proj.bias.data, 0.)
 
+
+    #@force_fp32(apply_to=('query', 'reference_points', 'input_flatten', 'input_spatial_shapes', 'input_level_start_index', 'input_padding_mask'))
     def forward(self, query, reference_points, input_flatten, input_spatial_shapes, input_level_start_index, input_padding_mask=None):
         """
         :param query                       (N, Length_{query}, C)

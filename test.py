@@ -234,9 +234,9 @@ cfg = update_cfg(
 
 #model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
 
-train_setup = False 
+train_setup = True 
 if train_setup:
-    #cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
 else:
     cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
@@ -248,10 +248,10 @@ data_loaders = [build_dataloader(
     dist=False,
     shuffle=False,)]
 
-sample = next(iter(data_loaders[0]))
+# sample = next(iter(data_loaders[0]))
 
 
-model = build_model(cfg.model, train_cfg=cfg.get("test_cfg"))
+model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))
 #wrap_fp16_model(model)
 
 
@@ -267,7 +267,7 @@ model = MMDataParallel(model, device_ids=[0])
 
 
 # sample = next(iter(data_loader))
-
+sample=None
 if not train_setup:
     motion_distribution_targets = {
         # for motion prediction
@@ -281,16 +281,15 @@ if not train_setup:
 
     with torch.no_grad():
         result = model(
-            return_loss=False,
-            rescale=True,
+            return_loss=True,
+            #rescale=True,
             img_metas=sample["img_metas"],
             img_inputs=sample["img_inputs"],
             future_egomotions=sample["future_egomotions"],
             motion_targets=motion_distribution_targets,
             img_is_valid=sample["img_is_valid"][0],
         )
-    
-    raise ValueError
+
 cfg.work_dir = "./"
 meta = dict()
 # log env info
@@ -320,8 +319,8 @@ runner = build_runner(
         logger=logger,
         meta=meta))
 
-
-runner.run(data_loaders, cfg.workflow)
+with torch.no_grad():
+    runner.run(data_loaders, cfg.workflow)
 
 
 

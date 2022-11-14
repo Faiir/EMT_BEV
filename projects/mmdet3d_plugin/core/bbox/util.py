@@ -36,7 +36,7 @@ def points_img2cam(points, cam2img):
 
 
 def normalize_bbox(bboxes, pc_range):
-
+    #GT BB
     cx = bboxes[..., 0:1]
     cy = bboxes[..., 1:2]
     cz = bboxes[..., 2:3]
@@ -55,7 +55,7 @@ def normalize_bbox(bboxes, pc_range):
         normalized_bboxes = torch.cat(
             (cx, cy, w, l, cz, h, rot.sin(), rot.cos()), dim=-1
         )
-    return normalized_bboxes
+    return normalized_bboxes # GT x 10
 
 def denormalize_bbox(normalized_bboxes, pc_range):
     # rotation 

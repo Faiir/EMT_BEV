@@ -222,11 +222,22 @@ PETR_HEAD FORWARD tmptmp: torch.Size([1, 900, 10])
 PETR_HEAD FORWARD all_cls_scores: torch.Size([1, 1, 900, 10])
 PETR_HEAD FORWARD all_bbox_preds: torch.Size([1, 1, 900, 10])
 PETR_HEAD FORWARD all_bbox_preds: torch.Size([1, 1, 900, 10])
-NMS_FREE DECODE SINGLE bbox_preds torch.Size([300, 10])
-NMS_FREE DECODE SINGLE FINAL BOX PREDStorch.Size([300, 9])
+max_num = 300
+cls_scores.shape = torch.Size([900, 10])
+scores.shape = torch.Size([300]) indexs.shape = torch.Size([300])
+bbox_index.shape = torch.Size([300])  raw bbox_preds.shape = torch.Size([900, 10]) 
+bbox_preds.shape = torch.Size([300, 10]) 
+final_box_preds.shape = torch.Size([300, 9]) 
 NMS_FREE DECODE SINGLE MASK torch.Size([300])
 NMS_FREE DECODE SINGLE boxes3d torch.Size([300, 9])
-
+max_num = 300
+cls_scores.shape = torch.Size([900, 10])
+scores.shape = torch.Size([300]) indexs.shape = torch.Size([300])
+bbox_index.shape = torch.Size([300])  raw bbox_preds.shape = torch.Size([900, 10]) 
+bbox_preds.shape = torch.Size([300, 10]) 
+final_box_preds.shape = torch.Size([300, 9]) 
+NMS_FREE DECODE SINGLE MASK torch.Size([300])
+NMS_FREE DECODE SINGLE boxes3d torch.Size([300, 9])
 
 Semantic Segmentation 
 

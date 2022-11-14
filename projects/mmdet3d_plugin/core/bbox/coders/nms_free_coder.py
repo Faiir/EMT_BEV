@@ -51,20 +51,25 @@ class NMSFreeCoder(BaseBBoxCoder):
             cls_scores (Tensor): Outputs from the classification head, \
                 shape [num_query, cls_out_channels]. Note \
                 cls_out_channels should includes background.
-            bbox_preds (Tensor): Outputs from the regression \
+            bbox_preds (Tensor): Outputs from tshe regression \
                 head with normalized coordinate format (cx, cy, w, l, cz, h, rot_sine, rot_cosine, vx, vy). \
                 Shape [num_query, 9].
         Returns:
             list[dict]: Decoded boxes.
         """
         max_num = self.max_num
-
+        print(f"{max_num = }")
         cls_scores = cls_scores.sigmoid()
+        print(f"{cls_scores.shape = }")
         scores, indexs = cls_scores.view(-1).topk(max_num)
+        print(f"{scores.shape = } {indexs.shape = }")
         labels = indexs % self.num_classes
         bbox_index = indexs // self.num_classes
+        print(f"{bbox_index.shape = }  raw {bbox_preds.shape = } ")
         bbox_preds = bbox_preds[bbox_index]
+        print(f"{bbox_preds.shape = } ")
         final_box_preds = denormalize_bbox(bbox_preds, self.pc_range)  
+        print(f"{final_box_preds.shape = } ")
         final_scores = scores 
         final_preds = labels 
 
@@ -112,7 +117,8 @@ class NMSFreeCoder(BaseBBoxCoder):
         """
         all_cls_scores = preds_dicts['all_cls_scores'][-1]
         all_bbox_preds = preds_dicts['all_bbox_preds'][-1]
-        
+        print(f"{all_cls_scores.shape = }")
+        print(f"{all_bbox_preds.shape = }")
         batch_size = all_cls_scores.size()[0]
         predictions_list = []
         for i in range(batch_size):

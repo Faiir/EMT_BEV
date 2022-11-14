@@ -20,7 +20,7 @@ from torch import Tensor
 from torchvision.models._utils import IntermediateLayerGetter
 
 from .ops.modules import MSDeformAttn
-
+from mmcv.runner import force_fp32
 
 import torch.utils.checkpoint as cp
 
@@ -873,10 +873,13 @@ class DeformableTransformerEncoderLayer(nn.Module):
         src = self.norm2(src)
         return src
 
+   
     def forward(self, src, pos, reference_points, spatial_shapes, level_start_index, padding_mask=None):
         # self attention
-        src2 = self.self_attn(self.with_pos_embed(
-            src, pos), reference_points, src, spatial_shapes, level_start_index, padding_mask)
+        tensor_with_pos = self.with_pos_embed(
+            src, pos)
+        src2 = self.self_attn(tensor_with_pos, reference_points,
+                              src, spatial_shapes, level_start_index, padding_mask)
         #print(f"src2 shape {src2.shape = }")
         src = src + self.dropout1(src2)
         src = self.norm1(src)
@@ -957,7 +960,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt)
         return tgt
-
+    
     def forward(self, tgt, query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None):
         # self attention
         #print("decoder")

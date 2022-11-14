@@ -116,7 +116,8 @@ class HungarianAssigner3D(BaseAssigner):
 
         # 2. compute the weighted costs
         # classification and bboxcost.
-        cls_cost = self.cls_cost(cls_pred, gt_labels)
+        # Q x N ; NGT 
+        cls_cost = self.cls_cost(cls_pred, gt_labels) #W x GT 
         # regression L1 cost
         normalized_gt_bboxes = normalize_bbox(gt_bboxes, self.pc_range)
         reg_cost = self.reg_cost(bbox_pred[:, :8], normalized_gt_bboxes[:, :8])
@@ -130,7 +131,7 @@ class HungarianAssigner3D(BaseAssigner):
             raise ImportError('Please run "pip install scipy" '
                               'to install scipy first.')
         cost = torch.nan_to_num(cost, nan=100.0, posinf=100.0, neginf=-100.0)
-        matched_row_inds, matched_col_inds = linear_sum_assignment(cost)
+        matched_row_inds, matched_col_inds = linear_sum_assignment(cost) #GT 
         matched_row_inds = torch.from_numpy(matched_row_inds).to(
             bbox_pred.device)
         matched_col_inds = torch.from_numpy(matched_col_inds).to(

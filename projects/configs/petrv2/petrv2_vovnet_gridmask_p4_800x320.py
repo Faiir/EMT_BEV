@@ -57,7 +57,7 @@ model = dict(
             decoder=dict(
                 type='PETRTransformerDecoder',
                 return_intermediate=True,
-                num_layers=6,
+                num_layers=2,
                 transformerlayers=dict(
                     type='PETRTransformerDecoderLayer',
                     attn_cfgs=[
@@ -109,7 +109,8 @@ model = dict(
             pc_range=point_cloud_range))))
 
 dataset_type = 'CustomNuScenesDataset'
-data_root = "data/nuscenes/"  # '/data/Dataset/nuScenes/'
+# "data/nuscenes/"  # '/data/Dataset/nuScenes/'
+data_root = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes/"
 
 file_client_args = dict(backend='disk')
 
@@ -208,7 +209,8 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'mmdet3d_nuscenes_30f_infos_train.pkl',
+        # 'mmdet3d_nuscenes_30f_infos_train.pkl',
+        ann_file=data_root + 'nuscenes_infos_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         modality=input_modality,
