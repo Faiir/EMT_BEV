@@ -35,6 +35,13 @@ from mmdet.models.utils import NormedLinear
 import copy
 
 
+def check_if_inf(**kwargs):
+    for k, v in kwargs.items():
+        if type(v) == torch.Tensor:
+            if torch.any(torch.isinf(v)):
+                print(f"Found inf / -inf in {k}")
+
+
 class RegLayer(nn.Module):
     def __init__(self,  embed_dims=256,
                  shared_reg_fcs=2,
@@ -230,9 +237,9 @@ class Motion_DETR_DET(BaseModule):
             reference = inverse_sigmoid(references.clone())
             #assert reference.shape[-1] == 3
             outputs_class = self.cls_branches[lvl](decoder_output[lvl])
-            print(f"{outputs_class.shape = }")
+            #print(f"{outputs_class.shape = }")
             tmp = self.reg_branches[lvl](decoder_output[lvl])
-            print(f"{tmp.shape = }")
+            #print(f"{tmp.shape = }")
             tmp[..., 0:2] += reference[..., 0:2]
             tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
             # tmp[..., 4:5] += reference[..., 2:3]
@@ -362,7 +369,7 @@ class Motion_DETR_DET(BaseModule):
             num_dec_layer += 1
         return loss_dict
  
- 
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
     def _get_target_single(self,
                            cls_score,
                            bbox_pred,
@@ -420,7 +427,8 @@ class Motion_DETR_DET(BaseModule):
             bbox_targets[pos_inds] = sampling_result.pos_gt_bboxes.reshape(sampling_result.pos_gt_bboxes.shape[0], self.code_size - 1)
         else:
             bbox_targets[pos_inds] = sampling_result.pos_gt_bboxes
-
+        check_if_inf(labels=labels, label_weights=label_weights, bbox_targets=bbox_targets, bbox_weights=bbox_weights,
+                     pos_inds=pos_inds, neg_inds=neg_inds)
         return (labels, label_weights, bbox_targets, bbox_weights, 
                 pos_inds, neg_inds)
     
@@ -541,8 +549,13 @@ class Motion_DETR_DET(BaseModule):
 
         loss_bbox = self.loss_bbox(
             bbox_preds[isnotnan, :10], normalized_bbox_targets[isnotnan, :10], bbox_weights[isnotnan, :10], avg_factor=num_total_pos)
-
+        
+        check_if_inf(loss_bbox=loss_bbox, bbox_weights=bbox_weights, bbox_preds=bbox_preds[isnotnan, :10], loss_cls=loss_cls,
+                     cls_scores=cls_scores, label_weights=label_weights, labels=labels)
         loss_cls = torch.nan_to_num(loss_cls)
         loss_bbox = torch.nan_to_num(loss_bbox)
+        #print("after nan to num")
+        check_if_inf(loss_bbox=loss_bbox, bbox_weights=bbox_weights, bbox_preds=bbox_preds[isnotnan, :10], loss_cls=loss_cls,
+                     cls_scores=cls_scores, label_weights=label_weights, labels=labels)
         return loss_cls, loss_bbox
     

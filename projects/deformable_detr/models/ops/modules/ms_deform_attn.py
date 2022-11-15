@@ -89,21 +89,21 @@ class MSDeformAttn(nn.Module):
         """
         N, Len_q, _ = query.shape
         N, Len_in, _ = input_flatten.shape
-        print(f"MH Attention Encoder input {input_flatten.shape = }, Query {query.shape = }")
+        #print(f"MH Attention Encoder input {input_flatten.shape = }, Query {query.shape = }")
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == Len_in
 
         value = self.value_proj(input_flatten)
         if input_padding_mask is not None:
             value = value.masked_fill(input_padding_mask[..., None], float(0))
         value = value.view(N, Len_in, self.n_heads, self.d_model // self.n_heads)
-        print(f"Value {value.shape = }")
+        #print(f"Value {value.shape = }")
         sampling_offsets = self.sampling_offsets(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
-        print(f"sampling_offsets {sampling_offsets.shape = }")
+        #print(f"sampling_offsets {sampling_offsets.shape = }")
         attention_weights = self.attention_weights(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)
-        print(f"attention_weights bef SM{attention_weights.shape = }")
+        #print(f"attention_weights bef SM{attention_weights.shape = }")
         attention_weights = F.softmax(attention_weights, -1).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
         # N, Len_q, n_heads, n_levels, n_points, 2
-        print(f"attention_weights af SM{attention_weights.shape = }")
+        #print(f"attention_weights af SM{attention_weights.shape = }")
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
             sampling_locations = reference_points[:, :, None, :, None, :] \
@@ -115,10 +115,10 @@ class MSDeformAttn(nn.Module):
             raise ValueError(
                 'Last dim of reference_points must be 2 or 4, but get {} instead.'.format(reference_points.shape[-1]))
         
-        print(f"sampling_locations {sampling_locations.shape = }")
+        #print(f"sampling_locations {sampling_locations.shape = }")
         output = MSDeformAttnFunction.apply(
             value, input_spatial_shapes, input_level_start_index, sampling_locations, attention_weights, self.im2col_step)
-        print(f"output before proj {output.shape }")
+        #print(f"output before proj {output.shape }")
         output = self.output_proj(output)
-        print(f"output after proj {output.shape = }")
+        #print(f"output after proj {output.shape = }")
         return output

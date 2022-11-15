@@ -169,18 +169,18 @@ class DeformableTransformer(nn.Module):
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
 
-        print(
-        f"src_flatten {src_flatten.shape = } spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } lvl_pos_embed_flatten  {lvl_pos_embed_flatten.shape = } mask_flatten  {mask_flatten.shape = }")
+        # print(
+        # f"src_flatten {src_flatten.shape = } spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } lvl_pos_embed_flatten  {lvl_pos_embed_flatten.shape = } mask_flatten  {mask_flatten.shape = }")
 
         # encoder
         memory = self.encoder(src_flatten, spatial_shapes, level_start_index,
                               valid_ratios, lvl_pos_embed_flatten, mask_flatten)
-        print(f"{memory.shape =}")
+        #print(f"{memory.shape =}")
         seg_memory, seg_mask = memory[:, level_start_index[-1] :, :], mask_flatten[:, level_start_index[-1]:]
-        print(f"{seg_memory.shape =} {seg_mask.shape =}")
+        #print(f"{seg_memory.shape =} {seg_mask.shape =}")
         seg_memory = seg_memory.permute(0, 2, 1).view(bs, c, h, w)
         seg_mask = seg_mask.view(bs, h, w)
-        print(f"after Permute/View {seg_memory.shape =} {seg_mask.shape =}")
+        #print(f"after Permute/View {seg_memory.shape =} {seg_mask.shape =}")
         # prepare input for decoder
         bs, _, c = memory.shape
         if self.two_stage:
@@ -211,7 +211,7 @@ class DeformableTransformer(nn.Module):
             reference_points = self.reference_points(query_embed).sigmoid()
             init_reference_out = reference_points
         
-        print(f"tgt {tgt.shape = } reference_points  {reference_points.shape = }  memory  {memory.shape = }  spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } query_embed  {query_embed.shape = } mask_flatten  {mask_flatten.shape = }")
+        #print(f"tgt {tgt.shape = } reference_points  {reference_points.shape = }  memory  {memory.shape = }  spatial_shapes  {spatial_shapes.shape = } level_start_index  {level_start_index.shape = } valid_ratios  {valid_ratios.shape = } query_embed  {query_embed.shape = } mask_flatten  {mask_flatten.shape = }")
 
         # decoder
         hs, inter_references = self.decoder(tgt, reference_points, memory,
@@ -257,13 +257,13 @@ class DeformableTransformerEncoderLayer(nn.Module):
         # self attention
         src2 = self.self_attn(self.with_pos_embed(
             src, pos), reference_points, src, spatial_shapes, level_start_index, padding_mask)
-        print(f"src2 shape {src2.shape = }")
+        #print(f"src2 shape {src2.shape = }")
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
         # ffn
         src = self.forward_ffn(src)
-        print(f"Transformer encoder output shape {src.shape = }")
+        #print(f"Transformer encoder output shape {src.shape = }")
         return src
 
 
@@ -340,11 +340,11 @@ class DeformableTransformerDecoderLayer(nn.Module):
 
     def forward(self, tgt, query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None):
         # self attention
-        print("decoder")
+        #print("decoder")
         q = k = self.with_pos_embed(tgt, query_pos)
         tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(
             0, 1), tgt.transpose(0, 1))[0].transpose(0, 1)
-        print(f"Self Attn: {tgt2.shape =}")
+        #print(f"Self Attn: {tgt2.shape =}")
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -352,13 +352,13 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt2 = self.cross_attn(self.with_pos_embed(tgt, query_pos),
                                reference_points,
                                src, src_spatial_shapes, level_start_index, src_padding_mask)
-        print(f"Cross Attn: {tgt2.shape =}")
+        #print(f"Cross Attn: {tgt2.shape =}")
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
         # ffn
         tgt = self.forward_ffn(tgt)
-        print(f"Out Decoder: {tgt.shape =}")
+        #print(f"Out Decoder: {tgt.shape =}")
         return tgt
 
 

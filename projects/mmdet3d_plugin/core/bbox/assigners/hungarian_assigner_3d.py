@@ -22,6 +22,13 @@ except ImportError:
     linear_sum_assignment = None
 
 
+def check_if_inf(**kwargs):
+    for k, v in kwargs.items():
+        if type(v) == torch.Tensor:
+            if torch.any(torch.isinf(v)):
+                print(f"Found inf / -inf in {k}")
+
+
 @BBOX_ASSIGNERS.register_module()
 class HungarianAssigner3D(BaseAssigner):
     """Computes one-to-one matching between predictions and ground truth.
@@ -117,10 +124,11 @@ class HungarianAssigner3D(BaseAssigner):
         # 2. compute the weighted costs
         # classification and bboxcost.
         # Q x N ; NGT 
-        cls_cost = self.cls_cost(cls_pred, gt_labels) #W x GT 
+        cls_cost = self.cls_cost(cls_pred, gt_labels) #W x GTBB
         # regression L1 cost
         normalized_gt_bboxes = normalize_bbox(gt_bboxes, self.pc_range)
-        reg_cost = self.reg_cost(bbox_pred[:, :8], normalized_gt_bboxes[:, :8])
+        reg_cost = self.reg_cost(
+            bbox_pred[:, :8], normalized_gt_bboxes[:, :8])  # W x GTBB
       
         # weighted sum of above two costs
         cost = cls_cost + reg_cost
@@ -133,9 +141,9 @@ class HungarianAssigner3D(BaseAssigner):
         cost = torch.nan_to_num(cost, nan=100.0, posinf=100.0, neginf=-100.0)
         matched_row_inds, matched_col_inds = linear_sum_assignment(cost) #GT 
         matched_row_inds = torch.from_numpy(matched_row_inds).to(
-            bbox_pred.device)
+            bbox_pred.device) #GTBB
         matched_col_inds = torch.from_numpy(matched_col_inds).to(
-            bbox_pred.device)
+            bbox_pred.device) #GTBB
 
         # 4. assign backgrounds and foregrounds
         # assign all indices to backgrounds first
@@ -143,5 +151,8 @@ class HungarianAssigner3D(BaseAssigner):
         # assign foregrounds based on matching results
         assigned_gt_inds[matched_row_inds] = matched_col_inds + 1
         assigned_labels[matched_row_inds] = gt_labels[matched_col_inds]
+        
+        check_if_inf(assigned_gt_inds=assigned_gt_inds, assigned_labels=assigned_labels,
+                     matched_col_inds=matched_col_inds, matched_row_inds=matched_row_inds, cost=cost, normalized_gt_bboxes=normalized_gt_bboxes)
         return AssignResult(
             num_gts, assigned_gt_inds, None, labels=assigned_labels)

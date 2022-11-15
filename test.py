@@ -252,7 +252,7 @@ data_loaders = [build_dataloader(
 
 
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))
-#wrap_fp16_model(model)
+wrap_fp16_model(model)
 
 
 model.cuda()

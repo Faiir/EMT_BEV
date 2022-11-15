@@ -58,18 +58,18 @@ class NMSFreeCoder(BaseBBoxCoder):
             list[dict]: Decoded boxes.
         """
         max_num = self.max_num
-        print(f"{max_num = }")
+        #print(f"{max_num = }")
         cls_scores = cls_scores.sigmoid()
-        print(f"{cls_scores.shape = }")
+        #print(f"{cls_scores.shape = }")
         scores, indexs = cls_scores.view(-1).topk(max_num)
-        print(f"{scores.shape = } {indexs.shape = }")
+        #print(f"{scores.shape = } {indexs.shape = }")
         labels = indexs % self.num_classes
         bbox_index = indexs // self.num_classes
-        print(f"{bbox_index.shape = }  raw {bbox_preds.shape = } ")
+        #print(f"{bbox_index.shape = }  raw {bbox_preds.shape = } ")
         bbox_preds = bbox_preds[bbox_index]
-        print(f"{bbox_preds.shape = } ")
+        #print(f"{bbox_preds.shape = } ")
         final_box_preds = denormalize_bbox(bbox_preds, self.pc_range)  
-        print(f"{final_box_preds.shape = } ")
+        #print(f"{final_box_preds.shape = } ")
         final_scores = scores 
         final_preds = labels 
 
@@ -83,12 +83,12 @@ class NMSFreeCoder(BaseBBoxCoder):
                     self.post_center_range[:3]).all(1)
             mask &= (final_box_preds[..., :3] <=
                      self.post_center_range[3:]).all(1)
-            print(f"NMS_FREE DECODE SINGLE MASK {mask.shape}")
+            #print(f"NMS_FREE DECODE SINGLE MASK {mask.shape}")
             if self.score_threshold:
                 mask &= thresh_mask
 
             boxes3d = final_box_preds[mask]
-            print(f"NMS_FREE DECODE SINGLE boxes3d {boxes3d.shape}")
+            #print(f"NMS_FREE DECODE SINGLE boxes3d {boxes3d.shape}")
             scores = final_scores[mask]
             labels = final_preds[mask]
             predictions_dict = {
@@ -117,8 +117,8 @@ class NMSFreeCoder(BaseBBoxCoder):
         """
         all_cls_scores = preds_dicts['all_cls_scores'][-1]
         all_bbox_preds = preds_dicts['all_bbox_preds'][-1]
-        print(f"{all_cls_scores.shape = }")
-        print(f"{all_bbox_preds.shape = }")
+        #print(f"{all_cls_scores.shape = }")
+        #print(f"{all_bbox_preds.shape = }")
         batch_size = all_cls_scores.size()[0]
         predictions_list = []
         for i in range(batch_size):

@@ -100,8 +100,7 @@ class SinePositionalEncoding3D(BaseModule):
         pos = torch.cat((pos_n, pos_y, pos_x), dim=4).permute(0, 1, 4, 2, 3)
 
 
-        print(
-            f"POS SINE: {pos_n.shape =} {pos_x.shape =} {pos_y.shape =}, {pos.shape =}  {mask.shape =}")
+        #print(            f"POS SINE: {pos_n.shape =} {pos_x.shape =} {pos_y.shape =}, {pos.shape =}  {mask.shape =}")
         return pos
 
     def __repr__(self):

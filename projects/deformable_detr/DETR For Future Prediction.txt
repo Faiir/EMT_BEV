@@ -84,7 +84,8 @@ Potentially need to warp input images before and then process them together with
 
   maybe during feature fusion in segmentation 
 
-
+print statements out 
+check if layer output to fp32 for custome attention func 
 
 
 Integration plan DETR > BEVerse 

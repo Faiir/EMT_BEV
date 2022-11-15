@@ -526,7 +526,7 @@ class PETRHead(AnchorFreeHead):
         # print(gt_bboxes.size(), bbox_pred.size())
         # DETR
         bbox_targets[pos_inds] = sampling_result.pos_gt_bboxes
-        return (labels, label_weights, bbox_targets, bbox_weights, 
+        return (labels, label_weights, bbox_targets, bbox_weights, # Q. Q, Qx9 Qx10, GTBB GTBB
                 pos_inds, neg_inds)
 
     def get_targets(self,
