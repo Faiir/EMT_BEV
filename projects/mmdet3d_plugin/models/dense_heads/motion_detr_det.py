@@ -40,6 +40,8 @@ def check_if_inf(**kwargs):
         if type(v) == torch.Tensor:
             if torch.any(torch.isinf(v)):
                 print(f"Found inf / -inf in {k}")
+            if v.isnan().sum() > 0 or v.sum() == 0.0:
+                print("hs")
 
 
 class RegLayer(nn.Module):
@@ -251,7 +253,10 @@ class Motion_DETR_DET(BaseModule):
 
         all_cls_scores = torch.stack(outputs_classes)
         all_bbox_preds = torch.stack(outputs_coords)
-    
+        if all_cls_scores.isnan().sum() > 0:
+            print("all_cls_scores")
+        if all_bbox_preds.isnan().sum() > 0:
+            print("all_bbox_preds")
         outs = {
             'all_cls_scores': all_cls_scores,
             'all_bbox_preds': all_bbox_preds,
@@ -371,7 +376,7 @@ class Motion_DETR_DET(BaseModule):
         for k,v in loss_dict.items():
             if v.isnan().sum() > 0 or v.sum() == 0.0:
                 print(k)
-                
+
         return loss_dict
  
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)

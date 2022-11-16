@@ -269,7 +269,7 @@ for k in state_dict_detr.keys():
             print(f"Failure for {k}, exception {e}")
 
 
-wrap_fp16_model(model)
+#wrap_fp16_model(model)
 
 
 model.cuda()

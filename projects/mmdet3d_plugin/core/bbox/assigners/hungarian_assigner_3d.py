@@ -27,6 +27,8 @@ def check_if_inf(**kwargs):
         if type(v) == torch.Tensor:
             if torch.any(torch.isinf(v)):
                 print(f"Found inf / -inf in {k}")
+            if v.isnan().sum() > 0 or v.sum() == 0.0:
+                print("hs")
 
 
 @BBOX_ASSIGNERS.register_module()

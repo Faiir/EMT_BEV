@@ -359,6 +359,9 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         if self.shared_feature:
             return self.forward_with_shared_features(bev_feats, targets)
 
+        if bev_feats.isnan().sum() > 0:
+            print("bev_feats")
+
         predictions = {}
         #for task_name, task_feat_encoder in self.taskfeat_encoders.items():
 
@@ -368,10 +371,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         # task-specific feature encoder
         map_feat = self.taskfeat_encoders["map"]([task_feat])
         map_pred = self.task_decoders["map"]([map_feat])
-        
-        
-        
-        
+
         self.logger.debug(
             f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
         det_feat = self.task_feat_cropper["3dod"](bev_feats)
@@ -380,7 +380,13 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         task_mask = mask = torch.zeros(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
         features, pos = self.backbone(task_feat, task_mask)
-        
+        for f in features:
+            for n in f:
+                if n.isnan().sum() > 0:
+                    print("features")
+        for p in pos:
+            if p.isnan().sum() > 0:
+                print("features")
         srcs = []
         masks = []
         for l, feat in enumerate(features):
@@ -419,6 +425,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)
         
+        if hs.isnan().sum() > 0 or hs.sum() == 0.0:
+            print("hs")
         #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
         dod_pred = self.task_decoders["3dod"](
                 hs,init_reference)
