@@ -414,7 +414,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                     past_query_embed = self.past_query_embed.weight
                 past_query_embed = self.temporal_query_projection(
                     past_query_embed)
-                print(f"{self.past_query_embed.shape = }")
+                #print(f"{self.past_query_embed.shape = }")
                 query_embeds += past_query_embed
         hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)

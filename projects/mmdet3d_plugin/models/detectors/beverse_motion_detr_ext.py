@@ -183,7 +183,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
 
         # loss functions for multi-task
         losses = self.pts_bbox_head.loss(predictions=outs, targets=mtl_targets)
-
+        
         return losses
 
     @auto_fp16(apply_to=("img_inputs"))

@@ -156,7 +156,7 @@ class DeformableDETRsegm(nn.Module):
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact, seg_memory, seg_mask = self.detr.transformer(
             srcs, masks, pos, query_embeds)
         
-        print(f"hs {hs.shape = } init_reference  {init_reference.shape = }  enc_outputs_class  {enc_outputs_class = } enc_outputs_coord_unact  {enc_outputs_coord_unact = } seg_memory  {seg_memory.shape = } seg_mask  {seg_mask.shape = }")
+        # print(f"hs {hs.shape = } init_reference  {init_reference.shape = }  enc_outputs_class  {enc_outputs_class = } enc_outputs_coord_unact  {enc_outputs_coord_unact = } seg_memory  {seg_memory.shape = } seg_mask  {seg_mask.shape = }")
 
         outputs_classes = []
         outputs_coords = []
@@ -251,16 +251,16 @@ class MaskHeadSmallConv(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x, bbox_mask, fpns):
-        print(
-            f"Input MHead SegConv Shape {x.shape = }, bbox_mask {bbox_mask.shape = },")
-        for f in fpns:
-            print(f"features from image {f.shape}")
+        # print(
+        #     f"Input MHead SegConv Shape {x.shape = }, bbox_mask {bbox_mask.shape = },")
+        # for f in fpns:
+        #     print(f"features from image {f.shape}")
         def expand(tensor, length):
             return tensor.unsqueeze(1).repeat(1, int(length), 1, 1, 1).flatten(0, 1)
 
         x = torch.cat([expand(x, bbox_mask.shape[1]),
                       bbox_mask.flatten(0, 1)], 1)
-        print(f"First Expand: {x.shape = }")
+        #print(f"First Expand: {x.shape = }")
         x = self.lay1(x)
         x = self.gn1(x)
         x = F.relu(x)
@@ -275,7 +275,7 @@ class MaskHeadSmallConv(nn.Module):
         x = self.lay3(x)
         x = self.gn3(x)
         x = F.relu(x)
-        print(f"Sec Expand: {x.shape = }")
+        #print(f"Sec Expand: {x.shape = }")
         cur_fpn = self.adapter2(fpns[1])
         if cur_fpn.size(0) != x.size(0):
             cur_fpn = expand(cur_fpn, x.size(0) / cur_fpn.size(0))
@@ -283,7 +283,7 @@ class MaskHeadSmallConv(nn.Module):
         x = self.lay4(x)
         x = self.gn4(x)
         x = F.relu(x)
-        print(f"Third Expand: {x.shape = }")
+        #print(f"Third Expand: {x.shape = }")
         cur_fpn = self.adapter3(fpns[2])
         if cur_fpn.size(0) != x.size(0):
             cur_fpn = expand(cur_fpn, x.size(0) / cur_fpn.size(0))
@@ -291,9 +291,9 @@ class MaskHeadSmallConv(nn.Module):
         x = self.lay5(x)
         x = self.gn5(x)
         x = F.relu(x)
-        print(f"Fourth Expand: {x.shape = }")
+        #print(f"Fourth Expand: {x.shape = }")
         x = self.out_lay(x)
-        print(f"Out MHead SegConv Shape {x.shape = }")
+        #print(f"Out MHead SegConv Shape {x.shape = }")
         return x
 
 
@@ -333,7 +333,7 @@ class MHAttentionMap(nn.Module):
             weights.masked_fill_(mask.unsqueeze(1).unsqueeze(1), float("-inf"))
         weights = F.softmax(weights.flatten(2), dim=-1).view_as(weights)
         weights = self.dropout(weights)
-        print(f"MH AttentionMap Shape {weights.shape = }")
+        # print(f"MH AttentionMap Shape {weights.shape = }")
         return weights
 
 

@@ -27,7 +27,7 @@ from mmcv.cnn import xavier_init, constant_init, kaiming_init
 import math
 from mmdet.models.utils import NormedLinear
 def pos2posemb3d(pos, num_pos_feats=128, temperature=10000):
-    print("pos2posemb3d input: ", pos.shape)
+    #print("pos2posemb3d input: ", pos.shape)
     scale = 2 * math.pi
     pos = pos * scale
     dim_t = torch.arange(num_pos_feats, dtype=torch.float32, device=pos.device)
@@ -39,7 +39,7 @@ def pos2posemb3d(pos, num_pos_feats=128, temperature=10000):
     pos_y = torch.stack((pos_y[..., 0::2].sin(), pos_y[..., 1::2].cos()), dim=-1).flatten(-2)
     pos_z = torch.stack((pos_z[..., 0::2].sin(), pos_z[..., 1::2].cos()), dim=-1).flatten(-2)
     posemb = torch.cat((pos_y, pos_x, pos_z), dim=-1)
-    print(f"{pos_x.shape = }, {pos_y.shape = }, {pos_z.shape = }, {posemb.shape = }")
+    #print(f"{pos_x.shape = }, {pos_y.shape = }, {pos_z.shape = }, {posemb.shape = }")
     return posemb
 
 @HEADS.register_module()

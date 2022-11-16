@@ -1439,7 +1439,7 @@ class MHAttentionMap(nn.Module):
             weights.masked_fill_(mask.unsqueeze(1).unsqueeze(1), float("-inf"))
         weights = F.softmax(weights.flatten(2), dim=-1).view_as(weights)
         weights = self.dropout(weights)
-        print(f"MH AttentionMap Shape {weights.shape = }")
+        #print(f"MH AttentionMap Shape {weights.shape = }")
         return weights
 
 
@@ -1499,7 +1499,7 @@ class PostProcessSegm(nn.Module):
     def forward(self, results, outputs, orig_target_sizes, max_target_sizes):
         assert len(orig_target_sizes) == len(max_target_sizes)
         max_h, max_w = max_target_sizes.max(0)[0].tolist()
-        print(f"{max_h = }, {max_w = }")
+        #print(f"{max_h = }, {max_w = }")
         out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
 
         assert len(out_logits) == len(orig_target_sizes)
@@ -1518,25 +1518,24 @@ class PostProcessSegm(nn.Module):
         # and from relative [0, 1] to absolute [0, height] coordinates
         img_h, img_w = orig_target_sizes.unbind(1)
 
-        print(f"{img_h = }, {img_w = }")
+        #print(f"{img_h = }, {img_w = }")
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
-        print(f" {scale_fct.shape = }")
+        #print(f" {scale_fct.shape = }")
         boxes = boxes * scale_fct[:, None, :]
-        print(f" {boxes.shape = }")
+        #print(f" {boxes.shape = }")
         out_mask = outputs["pred_masks"]
-        print(f" {out_mask.shape = }")
+        #print(f" {out_mask.shape = }")
         B, R, H, W = out_mask.shape
         out_mask = out_mask.view(B, R, H * W)
-        print(f" {out_mask.shape = }")
+        #print(f" {out_mask.shape = }")
         out_mask = torch.gather(
             out_mask, 1, topk_boxes.unsqueeze(-1).repeat(1, 1, H * W))
-        print(f"After gather {out_mask.shape = }")
+        #print(f"After gather {out_mask.shape = }")
         outputs_masks = out_mask.view(B, 100, H, W).squeeze(2)
-        print(
-            f"After View --100 Hardcoded proposals? {outputs_masks.shape = }")
+
         outputs_masks = F.interpolate(outputs_masks, size=(
             max_h, max_w), mode="bilinear", align_corners=False)
-        print(f"After interpolate {outputs_masks.shape = }")
+        
         outputs_masks = (outputs_masks.sigmoid() > self.threshold).cpu()
 
         for i, (cur_mask, t, tt) in enumerate(zip(outputs_masks, max_target_sizes, orig_target_sizes)):
@@ -1545,7 +1544,7 @@ class PostProcessSegm(nn.Module):
             interpol_tmp = F.interpolate(
                 results[i]["masks"].float(), size=tuple(tt.tolist()), mode="nearest"
             )
-            print(f"{interpol_tmp.shape = }")
+            
             results[i]["masks"] = interpol_tmp.byte()
 
         return results
@@ -1598,7 +1597,7 @@ class PostProcessPanoptic(nn.Module):
             cur_scores = cur_scores[keep]
             cur_classes = cur_classes[keep]
             cur_masks = cur_masks[keep]
-            print(f"{cur_masks.shape = }, {size = }, {target_size = }")
+            
             # cur_masks = interpolate(cur_masks[None], to_tuple(
             #     size), mode="bilinear").squeeze(0)
             cur_masks = interpolate(cur_masks[:, None], to_tuple(
@@ -1848,10 +1847,10 @@ class DeformableDETR(nn.Module):
                 if self.past_query_embed is None:
                     self.past_query_embed = self.temporal_query_projection(
                         query_embeds)
-                print(f"{self.past_query_embed.shape = }")
+                
                 query_embeds += self.past_query_embed
 
-        print(f"{query_embeds.shape = }")
+        
 
         hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)

@@ -507,9 +507,9 @@ class PETRv2Head(AnchorFreeHead):
             reference = inverse_sigmoid(reference_points.clone())
             assert reference.shape[-1] == 3
             outputs_class = self.cls_branches[lvl](outs_dec[lvl])
-            print(f"{outputs_class.shape = }")
+            #print(f"{outputs_class.shape = }")
             tmp = self.reg_branches[lvl](outs_dec[lvl])
-            print(f"{tmp.shape = }")
+            #print(f"{tmp.shape = }")
             tmp[..., 0:2] += reference[..., 0:2]
             tmp[..., 0:2] = tmp[..., 0:2].sigmoid()
             tmp[..., 4:5] += reference[..., 2:3]
@@ -524,12 +524,12 @@ class PETRv2Head(AnchorFreeHead):
 
         all_cls_scores = torch.stack(outputs_classes)
         all_bbox_preds = torch.stack(outputs_coords)
-        print(f"{all_cls_scores.shape = }")
-        print(f"{all_bbox_preds.shape = }")
+        #print(f"{all_cls_scores.shape = }")
+        #print(f"{all_bbox_preds.shape = }")
         all_bbox_preds[..., 0:1] = (all_bbox_preds[..., 0:1] * (self.pc_range[3] - self.pc_range[0]) + self.pc_range[0])
         all_bbox_preds[..., 1:2] = (all_bbox_preds[..., 1:2] * (self.pc_range[4] - self.pc_range[1]) + self.pc_range[1])
         all_bbox_preds[..., 4:5] = (all_bbox_preds[..., 4:5] * (self.pc_range[5] - self.pc_range[2]) + self.pc_range[2])
-        print(f"{all_bbox_preds.shape = }")
+        #print(f"{all_bbox_preds.shape = }")
         outs = {
             'all_cls_scores': all_cls_scores,
             'all_bbox_preds': all_bbox_preds,

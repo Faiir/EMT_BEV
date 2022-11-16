@@ -89,16 +89,16 @@ class PETRTransformer(BaseModule):
         """
         bs, n, c, h, w = x.shape
         memory = x.permute(1, 3, 4, 0, 2).reshape(-1, bs, c) # [bs, n, c, h, w] -> [n*h*w, bs, c]
-        print(f"{memory.shape = }")
+        #print(f"{memory.shape = }")
         pos_embed = pos_embed.permute(1, 3, 4, 0, 2).reshape(-1, bs, c) # [bs, n, c, h, w] -> [n*h*w, bs, c]
-        print(f"{pos_embed.shape = }")
+        #print(f"{pos_embed.shape = }")
         query_embed = query_embed.unsqueeze(1).repeat(
             1, bs, 1)  # [num_query, dim] -> [num_query, bs, dim]
-        print(f"{query_embed.shape = }")
+        #print(f"{query_embed.shape = }")
         mask = mask.view(bs, -1)  # [bs, n, h, w] -> [bs, n*h*w]
-        print(f"{mask.shape = }")
+        #print(f"{mask.shape = }")
         target = torch.zeros_like(query_embed)
-        print(f"{target.shape = }")
+        #print(f"{target.shape = }")
         # out_dec: [num_layers, num_query, bs, dim]
         out_dec = self.decoder(
             query=target,
@@ -109,10 +109,10 @@ class PETRTransformer(BaseModule):
             key_padding_mask=mask,
             reg_branch=reg_branch,
             )
-        print(f"{out_dec.shape = }")
+        #print(f"{out_dec.shape = }")
         out_dec = out_dec.transpose(1, 2)
         memory = memory.reshape(n, h, w, bs, c).permute(3, 0, 4, 1, 2)
-        print(f"out: {out_dec.shape = } {memory.shape = }")
+        #print(f"out: {out_dec.shape = } {memory.shape = }")
         return  out_dec, memory
 
 @TRANSFORMER.register_module()
