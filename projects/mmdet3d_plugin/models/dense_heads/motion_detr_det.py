@@ -367,6 +367,11 @@ class Motion_DETR_DET(BaseModule):
             loss_dict[f'd{num_dec_layer}.loss_cls'] = loss_cls_i
             loss_dict[f'd{num_dec_layer}.loss_bbox'] = loss_bbox_i
             num_dec_layer += 1
+            
+        for k,v in loss_dict.items():
+            if v.isnan().sum() > 0 or v.sum() == 0.0:
+                print(k)
+                
         return loss_dict
  
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
