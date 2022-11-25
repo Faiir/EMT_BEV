@@ -216,23 +216,23 @@ def group_pixels(
         )
         .view(1, width, 1)
         .repeat(1, 1, height)
-    )
+    ) # 1 200x200
     y_grid = (
         torch.arange(
             height, dtype=offset_predictions.dtype, device=offset_predictions.device
         )
         .view(1, 1, height)
         .repeat(1, width, 1)
-    )
-    pixel_grid = torch.cat((x_grid, y_grid), dim=0)
+    )  # 1 200x200
+    pixel_grid = torch.cat((x_grid, y_grid), dim=0) # 2x200x200
     center_locations = (
         (pixel_grid + offset_predictions).view(2, width * height, 1).permute(2, 1, 0)
-    )
-    centers = centers.view(-1, 1, 2)
+    ) # 1 40000 2
+    centers = centers.view(-1, 1, 2) # 100 1 2
 
-    distances = torch.norm(centers - center_locations, dim=-1)
+    distances = torch.norm(centers - center_locations, dim=-1) # 100 40000
 
-    instance_id = torch.argmin(distances, dim=0).reshape(1, width, height) + 1
+    instance_id = torch.argmin(distances, dim=0).reshape(1, width, height) + 1 # 1 200 200
     return instance_id
 
 
@@ -324,7 +324,7 @@ def make_instance_id_temporally_consistent(
     assert pred_inst.shape[0] == 1, "Assumes batch size = 1"
 
     # Initialise instance segmentations with prediction corresponding to the present
-    consistent_instance_seg = [pred_inst[0, 0]]
+    consistent_instance_seg = [pred_inst[0, 0]] # 200x200
     largest_instance_id = consistent_instance_seg[0].max().item()
 
     _, seq_len, h, w = pred_inst.shape
@@ -443,7 +443,7 @@ def predict_instance_segmentation_and_trajectories(
                 output["instance_offset"][b, t].detach(),
                 foreground_masks[b, t].detach(),
             )
-            print(f"pred_instance_t {pred_instance_t.shape}, unbekannt {_.shape}")
+            print(f"pred_instance_t {pred_instance_t.shape}, centers {_.shape}")
             pred_inst_batch.append(pred_instance_t)
         pred_inst.append(torch.stack(pred_inst_batch, dim=0))
 

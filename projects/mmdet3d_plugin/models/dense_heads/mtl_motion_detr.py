@@ -186,6 +186,10 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         #     self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
         
         self.temporal_queries_activated = temporal_queries_activated 
+        if self.temporal_queries_activated:
+            self.object_query_GRU = nn.GRU(hidden_dim, hidden_dim, 2)
+            self.current_query = None 
+            
         self.flow_warp = flow_warp
         self.warper = FeatureWarper(grid_conf=grid_conf)
         self.two_stage = False
@@ -284,10 +288,10 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
     def inference(self, predictions, img_metas, rescale):
         res = {}
-        print("MTL Head Inf")
+        print("MTL Head Inference")
         # derive bounding boxes for detection head
         if self.task_enable.get("3dod", False):
-            print("MTL Head Inf 3dod")
+            print("MTL Head Inference 3dod")
             res["bbox_list"] = self.get_bboxes(
                 predictions["3dod"], img_metas=img_metas, rescale=rescale
             )  # Has len 6 -< and attributes of: reg (2,200,200), height (1,200,200), dim ( (3,200,200)), rot(2,200,200), vel (2,200,200), heatmap (1,200,200)
@@ -309,7 +313,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
         # derive semantic maps for map head
         if self.task_enable.get("map", False):
-            print("MTL Head Inf map")
+            print("MTL Head Inference map")
             res["pred_semantic_indices"] = self.task_decoders[
                 "map"
             ].get_semantic_indices(
@@ -317,7 +321,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             )
 
         if self.task_enable.get("motion", False):
-            print("MTL Head Inf motion")
+            print("MTL Head Inference motion")
             seg_prediction, pred_consistent_instance_seg = self.task_decoders[
                 "motion"
             ].inference(
@@ -333,7 +337,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
     def forward_with_shared_features(self, bev_feats, targets=None):
         predictions = {}
         auxiliary_features = {}
-        print("MTL Head Inf motion")
+        print("MTL Head Inference motion")
         bev_feats = self.taskfeat_encoders["shared"]([bev_feats])
         self.logger.debug(
             f"MTL-HEAD forward_with_shared_features bev_feats: {str(bev_feats.shape)}"
@@ -413,15 +417,13 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         if not self.two_stage:
             query_embeds = self.query_embed.weight
             if self.temporal_queries_activated: #TODO FIX this 
-                if self.past_query_embed is None:
-                    self.past_query_embed = nn.Embedding(self.num_queries, self.hidden_dim*2)
-                    past_query_embed = self.past_query_embed.weight
-                else:
-                    past_query_embed = self.past_query_embed.weight
-                past_query_embed = self.temporal_query_projection(
-                    past_query_embed)
-                #print(f"{self.past_query_embed.shape = }")
-                query_embeds += past_query_embed
+                if self.current_query is None:
+                    self.current_query = torch.nn.Parameter(torch.randn(
+                        b, self.num_queries, self.hidden_dim), requires_grad=True)
+
+                query_embeds, self.current_query = self.object_query_GRU(
+                    query_embeds, self.current_query)
+
         hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
             srcs, masks, pos, query_embeds)
         

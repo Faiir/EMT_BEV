@@ -396,29 +396,10 @@ class BEVerse(MVXTwoStageDetector):
             img_is_valid=img_is_valid,
             count_time=True,
         )
-        torch.cuda.synchronize()
-        end = timer()
-        time_stats["Extract_img_feat_total"] = (end - start) * 1000
 
-        t_Extract_img_feat_total = (end - start) * 1000
-        self.logger.debug(
-            "BEVerse Extract_img_feat_total "
-            + "{:.2f}".format(t_Extract_img_feat_total)
-        )  # str(t_Extract_img_feat_total)        )
-
-        start = timer()
         predictions = self.simple_test_pts(
             img_feats, img_metas, rescale=rescale, motion_targets=motion_targets
         )
-
-        torch.cuda.synchronize()
-        end = timer()
-
-        time_stats["t_end"] = (end - start) * 1000
-        t_predictions = (end - start) * 1000
-        self.logger.debug(
-            "BEVerse Box t_predictions " + "{:.2f}".format(t_predictions)
-        )  # str(t_predictions))
 
         if "bbox_results" in predictions:
             bbox_list = [dict() for i in range(len(img_metas))]
@@ -426,8 +407,7 @@ class BEVerse(MVXTwoStageDetector):
                 result_dict["pts_bbox"] = pts_bbox
             predictions["bbox_results"] = bbox_list
 
-        predictions["time_stats"] = time_stats
-
+        
         return predictions
 
     def simple_test_pts(self, x, img_metas, rescale=False, motion_targets=None):

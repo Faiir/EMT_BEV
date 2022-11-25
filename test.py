@@ -228,13 +228,13 @@ cfg = update_cfg(
     map_grid_conf=map_grid_conf,
     motion_grid_conf=motion_grid_conf,
     point_cloud_range=point_cloud_range_extended_fustrum,
-    t_input_shape=(90, 155),
+    #t_input_shape=(90, 155),
 )
 
 
 #model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
 
-train_setup = True 
+train_setup = False 
 if train_setup:
     cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
@@ -248,11 +248,11 @@ data_loaders = [build_dataloader(
     dist=False,
     shuffle=False,)]
 
-# sample = next(iter(data_loaders[0]))
+sample = next(iter(data_loaders[0]))
 
 
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))
-wrap_fp16_model(model)
+#wrap_fp16_model(model)
 
 
 model.cuda()
@@ -267,7 +267,7 @@ model = MMDataParallel(model, device_ids=[0])
 
 
 # sample = next(iter(data_loader))
-sample=None
+#sample=None
 if not train_setup:
     motion_distribution_targets = {
         # for motion prediction
@@ -281,8 +281,8 @@ if not train_setup:
 
     with torch.no_grad():
         result = model(
-            return_loss=True,
-            #rescale=True,
+            return_loss=False,
+            rescale=True,
             img_metas=sample["img_metas"],
             img_inputs=sample["img_inputs"],
             future_egomotions=sample["future_egomotions"],

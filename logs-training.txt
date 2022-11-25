@@ -1,0 +1,65 @@
+logs-training.txt
+
+GPU 0: Tesla T4 16gb 
+
+Normal no FP16 BS2  HIdden 256 Nheads 4
+2022-11-17 10:15:32,772 - mmdet - INFO - Epoch [1][50/815]	lr: 2.985e-04, eta: 0:28:20, time: 2.223, data_time: 0.196, memory: 10046, loss_cls: 2.4431, loss_bbox: 9.7344, d0.loss_cls: 3.0464, d0.loss_bbox: 9.7257, d1.loss_cls: 2.6835, d1.loss_bbox: 9.7342, 3dod_sum: 37.3673, loss_semantic_seg: 12.0237, map_sum: 12.0237, loss: 49.3910, grad_norm: 48.0811
+with fp16 why the fuck is it the same memory
+2022-11-17 10:20:05,624 - mmdet - INFO - Epoch [1][50/815]	lr: 2.985e-04, eta: 0:24:35, time: 1.928, data_time: 0.217, memory: 10046, loss_cls: 3.0649, loss_bbox: 9.7364, d0.loss_cls: 3.4742, d0.loss_bbox: 9.7248, d1.loss_cls: 2.9427, d1.loss_bbox: 9.7308, 3dod_sum: 38.6738, loss_semantic_seg: 12.5532, map_sum: 12.5532, loss: 51.2271, grad_norm: 57.6752
+
+512 Hidden; Nheads 8; numqueries 500 NOfp16 BS2 
+2022-11-17 10:25:49,154 - mmdet - INFO - Epoch [1][50/815]	lr: 2.985e-04, eta: 0:35:49, time: 2.809, data_time: 0.223, memory: 10046, loss_cls: 2.5349, loss_bbox: 9.4389, d0.loss_cls: 3.1346, d0.loss_bbox: 9.3745, d1.loss_cls: 2.9640, d1.loss_bbox: 9.4193, d2.loss_cls: 2.8260, d2.loss_bbox: 9.4167, d3.loss_cls: 2.8046, d3.loss_bbox: 9.4105, d4.loss_cls: 2.8378, d4.loss_bbox: 9.4390, 3dod_sum: 73.6009, loss_semantic_seg: 12.3795, map_sum: 12.3795, loss: 85.9803, grad_norm: 98.9480
+
+BS3
+2022-11-17 10:32:48,775 - mmdet - INFO - Epoch [1][50/544]	lr: 4.171e-04, eta: 0:34:57, time: 4.247, data_time: 0.249, memory: 10296, loss_cls: 1.8645, loss_bbox: 9.5981, d0.loss_cls: 2.1842, d0.loss_bbox: 9.5653, d1.loss_cls: 2.0824, d1.loss_bbox: 9.6278, d2.loss_cls: 2.1742, d2.loss_bbox: 9.6178, d3.loss_cls: 2.3422, d3.loss_bbox: 9.6125, d4.loss_cls: 2.0693, d4.loss_bbox: 9.6209, 3dod_sum: 70.3593, loss_semantic_seg: 12.4524, map_sum: 12.4524, loss: 82.8117, grad_norm: 73.4873
+
+BS4
+2022-11-17 10:39:23,867 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:33:15, time: 5.573, data_time: 0.313, memory: 13310, loss_cls: 1.8486, loss_bbox: 9.3870, d0.loss_cls: 2.0627, d0.loss_bbox: 9.3391, d1.loss_cls: 1.9275, d1.loss_bbox: 9.3993, d2.loss_cls: 1.9542, d2.loss_bbox: 9.4120, d3.loss_cls: 1.9070, d3.loss_bbox: 9.4134, d4.loss_cls: 1.8557, d4.loss_bbox: 9.4105, 3dod_sum: 67.9169, loss_semantic_seg: 11.9916, map_sum: 11.9916, loss: 79.9085, grad_norm: 59.1465
+
+FP16 BS4
+2022-11-17 10:44:27,747 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:24:16, time: 4.069, data_time: 0.341, memory: 11017, loss_cls: 2.2333, loss_bbox: 9.5050, d0.loss_cls: 2.4094, d0.loss_bbox: 9.4670, d1.loss_cls: 2.1484, d1.loss_bbox: 9.5155, d2.loss_cls: 2.1276, d2.loss_bbox: 9.5227, d3.loss_cls: 2.2219, d3.loss_bbox: 9.5156, d4.loss_cls: 2.1452, d4.loss_bbox: 9.4967, 3dod_sum: 70.3084, loss_semantic_seg: 11.8541, map_sum: 11.8541, loss: 82.1625, grad_norm: 77.8983
+
+FP32  BS4 Hiddendim 256 numqueries 400
+2022-11-17 10:52:06,789 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:28:13, time: 4.731, data_time: 0.321, memory: 8868, loss_cls: 3.3816, loss_bbox: 9.4262, d0.loss_cls: 4.0283, d0.loss_bbox: 9.3921, d1.loss_cls: 3.8679, d1.loss_bbox: 9.4121, d2.loss_cls: 3.7636, d2.loss_bbox: 9.4165, d3.loss_cls: 3.3639, d3.loss_bbox: 9.4167, d4.loss_cls: 3.1836, d4.loss_bbox: 9.4375, 3dod_sum: 78.0900, loss_semantic_seg: 12.3743, map_sum: 12.3743, loss: 90.4643, grad_norm: 93.1445
+
+
+BEVerseTINY Orgh BS1
+2022-11-17 11:10:42,098 - mmdet - INFO - Epoch [1][50/1630]	lr: 2.250e-04, eta: 0:34:54, time: 1.326, data_time: 0.124, memory: 9383, task0.loss_heatmap: 42.9789, task0.loss_bbox: 2.1689, task1.loss_heatmap: 925.3916, task1.loss_bbox: 1.2922, task2.loss_heatmap: 1285.9405, task2.loss_bbox: 1.3215, task3.loss_heatmap: 611.5528, task3.loss_bbox: 0.2415, task4.loss_heatmap: 938.3651, task4.loss_bbox: 0.9831, task5.loss_heatmap: 337.3765, task5.loss_bbox: 1.1259, 3dod_sum: 4148.7385, loss_semantic_seg: 10.8640, map_sum: 10.8640, loss: 4159.6025, grad_norm: 24293.9074
+
+BEVerseTINY Org BS2
+2022-11-17 11:13:58,711 - mmdet - INFO - Epoch [1][50/815]	lr: 2.985e-04, eta: 0:32:43, time: 2.567, data_time: 0.189, memory: 9383, task0.loss_heatmap: 45.3500, task0.loss_bbox: 2.3407, task1.loss_heatmap: 1333.6332, task1.loss_bbox: 1.7686, task2.loss_heatmap: 826.8803, task2.loss_bbox: 1.5094, task3.loss_heatmap: 550.2940, task3.loss_bbox: 0.4875, task4.loss_heatmap: 1839.1274, task4.loss_bbox: 1.4501, task5.loss_heatmap: 565.1960, task5.loss_bbox: 1.2412, 3dod_sum: 5169.2784, loss_semantic_seg: 11.7164, map_sum: 11.7164, loss: 5180.9947, grad_norm: 35316.2687
+
+BS4
+2022-11-17 11:21:03,182 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:29:31, time: 4.950, data_time: 0.348, memory: 9292, task0.loss_heatmap: 46.0430, task0.loss_bbox: 2.0536, task1.loss_heatmap: 897.5143, task1.loss_bbox: 1.7789, task2.loss_heatmap: 2246.5893, task2.loss_bbox: 1.8967, task3.loss_heatmap: 252.3706, task3.loss_bbox: 0.9375, task4.loss_heatmap: 1826.8746, task4.loss_bbox: 1.6254, task5.loss_heatmap: 164.5266, task5.loss_bbox: 1.2174, 3dod_sum: 5443.4280, loss_semantic_seg: 11.5765, map_sum: 11.5765, loss: 5455.0046, grad_norm: 41839.1967
+
+With Future PredicitonBEVerseTiny BS1
+2022-11-17 11:25:28,588 - mmdet - INFO - Epoch [1][50/1630]	lr: 2.250e-04, eta: 1:10:33, time: 2.679, data_time: 0.112, memory: 9488, task0.loss_heatmap: 293.9631, task0.loss_bbox: 2.3961, task1.loss_heatmap: 1571.9287, task1.loss_bbox: 1.1281, task2.loss_heatmap: 1192.2303, task2.loss_bbox: 1.2827, task3.loss_heatmap: 404.6507, task3.loss_bbox: 0.3808, task4.loss_heatmap: 1512.9574, task4.loss_bbox: 1.0832, task5.loss_heatmap: 408.4298, task5.loss_bbox: 1.1345, 3dod_sum: 5391.5652, loss_semantic_seg: 12.1593, map_sum: 12.1593, loss_motion_seg: 2.7091, loss_motion_centerness: 133.9041, loss_motion_offset: 2.1169, loss_motion_flow: 1.6293, loss_motion_prob: 77531.4525, motion_sum: 77671.8103, loss: 83075.5369, grad_norm: 29551854.1903
+
+
+MotionDETR
+hiddendim 512 
+nq 350
+numpoints 6 
+BS4
+
+Full Run - Logs 
+
+
+
+with Grads Temp Model & 
+2022-11-17 12:16:54,882 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:28:49, time: 4.830, data_time: 0.344, memory: 11688, loss_cls: 2.2218, loss_bbox: 9.8293, d0.loss_cls: 2.5770, d0.loss_bbox: 9.8068, d1.loss_cls: 2.5575, d1.loss_bbox: 9.8217, d2.loss_cls: 2.2788, d2.loss_bbox: 9.8203, d3.loss_cls: 2.0994, d3.loss_bbox: 9.8202, d4.loss_cls: 2.0025, d4.loss_bbox: 9.8261, 3dod_sum: 72.6615, loss_semantic_seg: 11.9660, map_sum: 11.9660, loss: 84.6274, grad_norm: 56.2173
+Tem 4 points 1 bs 
+2022-11-17 12:38:54,617 - mmdet - INFO - Epoch [1][50/1630]	lr: 2.250e-04, eta: 0:43:34, time: 1.654, data_time: 0.118, memory: 9428, loss_cls: 2.7480, loss_bbox: 9.3374, d0.loss_cls: 3.2639, d0.loss_bbox: 9.3137, d1.loss_cls: 2.8058, d1.loss_bbox: 9.3366, d2.loss_cls: 2.7654, d2.loss_bbox: 9.3355, d3.loss_cls: 2.6123, d3.loss_bbox: 9.3277, d4.loss_cls: 2.5666, d4.loss_bbox: 9.3322, 3dod_sum: 72.7452, loss_semantic_seg: 12.1926, map_sum: 12.1926, loss: 84.9378, grad_norm: 80.0627
+
+With LSS
+2022-11-17 12:42:25,797 - mmdet - INFO - Epoch [1][50/1630]	lr: 2.250e-04, eta: 0:44:33, time: 1.692, data_time: 0.125, memory: 9461, loss_cls: 2.1559, loss_bbox: 9.6821, d0.loss_cls: 3.3427, d0.loss_bbox: 9.6869, d1.loss_cls: 2.6130, d1.loss_bbox: 9.6940, d2.loss_cls: 2.4538, d2.loss_bbox: 9.6909, d3.loss_cls: 2.2690, d3.loss_bbox: 9.6910, d4.loss_cls: 2.2084, d4.loss_bbox: 9.6825, 3dod_sum: 73.1701, loss_semantic_seg: 12.4010, map_sum: 12.4010, loss: 85.5711, grad_norm: 67.7631
+
+stuff  6points
+2022-11-17 12:29:58,511 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:28:38, time: 4.800, data_time: 0.336, memory: 8816, loss_cls: 1.9401, loss_bbox: 9.4617, d0.loss_cls: 2.4248, d0.loss_bbox: 9.4408, d1.loss_cls: 2.0546, d1.loss_bbox: 9.4804, d2.loss_cls: 1.9110, d2.loss_bbox: 9.4829, d3.loss_cls: 1.8737, d3.loss_bbox: 9.4733, d4.loss_cls: 2.0117, d4.loss_bbox: 9.4709, 3dod_sum: 69.0258, loss_semantic_seg: 12.1877, map_sum: 12.1877, loss: 81.2135, grad_norm: 50.5959
+
+4 points 
+2022-11-17 12:35:13,566 - mmdet - INFO - Epoch [1][50/408]	lr: 5.724e-04, eta: 0:27:58, time: 4.688, data_time: 0.310, memory: 8492, loss_cls: 1.5230, loss_bbox: 9.5324, d0.loss_cls: 1.6835, d0.loss_bbox: 9.5200, d1.loss_cls: 1.6991, d1.loss_bbox: 9.5464, d2.loss_cls: 1.5152, d2.loss_bbox: 9.5517, d3.loss_cls: 1.4375, d3.loss_bbox: 9.5430, d4.loss_cls: 1.4245, d4.loss_bbox: 9.5363, 3dod_sum: 66.5127, loss_semantic_seg: 12.1007, map_sum: 12.1007, loss: 78.6135, grad_norm: 40.0840
+
+
+with swin 
+2022-11-17 12:50:12,430 - mmdet - INFO - Epoch [1][50/1630]	lr: 2.250e-04, eta: 1:21:05, time: 3.079, data_time: 0.117, memory: 10424, loss_cls: 1.9812, loss_bbox: 9.7509, d0.loss_cls: 2.3473, d0.loss_bbox: 9.7559, d1.loss_cls: 2.1628, d1.loss_bbox: 9.7549, d2.loss_cls: 2.1352, d2.loss_bbox: 9.7581, d3.loss_cls: 2.0554, d3.loss_bbox: 9.7585, d4.loss_cls: 1.9142, d4.loss_bbox: 9.7556, 3dod_sum: 71.1299, loss_semantic_seg: 11.9170, map_sum: 11.9170, loss: 83.0470, grad_norm: 66.3871

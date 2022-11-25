@@ -265,6 +265,7 @@ for k in state_dict_detr.keys():
     if k in search_weights:
         try:
             state_dict_detr[k] = weights_tiny[k].clone()
+            state_dict_detr[k].requires_grad = False 
         except Exception as e:
             print(f"Failure for {k}, exception {e}")
 

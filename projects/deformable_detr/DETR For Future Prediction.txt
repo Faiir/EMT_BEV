@@ -4,21 +4,37 @@ DETR For Future Prediction
 TODO:
   Correct Losses 
     Losses Motion 
+      Lables consistent only for currently sampled batch 
+      No BBoxes 
+
+      Needs temporal consistency of the object 
+      Mask based matching like in IFC -> Transform Classification into tracking 
+        https://arxiv.org/pdf/2208.10547v1.pdf Temporal softmax prior 
+      Other methods all use BBoxes 
+        Shape-aware instance segmentation -> loss 
+      Ideally:
+        Predict the sequence using the same base image feature 
+
+
+
   Correct Labels --
     Future BBoxes > Später 
     Future Segmentation > Später 
       Vehicle Class 
   Model runs 
-    Correct Outputs 
+    Correct Outputs --
     Correct Layer combinations
-  Build is possible 
+  Build is possible ---
 
   QIM (MOTR) / Trackformer > Später 
   (Flow Label and computation )
     -> Predict / Regress flow between detected Centers somehow?
         Make consistent (evtl - mal schauen)
 
-  Loss currently has outputs from every layer? 
+  Loss currently has outputs from every layer? ---
+
+
+  what does BEVerse actually compute /predict 
 
 
 list of list 

@@ -480,7 +480,7 @@ class BaseMotionHead(BaseTaskHead):
 
     def inference(self, predictions):
         # [b, s, num_cls, h, w]
-        seg_prediction = torch.argmax(predictions["segmentation"], dim=2, keepdims=True)
+        seg_prediction = torch.argmax(predictions["segmentation"], dim=2, keepdims=True) # -> 2 > 1 Segmentation prediction 
 
         if self.using_focal_loss:
             predictions["instance_center"] = torch.sigmoid(
@@ -490,6 +490,6 @@ class BaseMotionHead(BaseTaskHead):
         pred_consistent_instance_seg = predict_instance_segmentation_and_trajectories(
             predictions,
             compute_matched_centers=False,
-        )
+        ) # 2 5 200 200 
 
         return seg_prediction, pred_consistent_instance_seg
