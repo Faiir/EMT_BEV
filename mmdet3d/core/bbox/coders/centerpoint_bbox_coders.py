@@ -145,8 +145,8 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         print("Decode Centerpoint BBoxcoders")
         batch, cat, _, _ = heat.size()
 
-        torch.cuda.synchronize()
-        start = timer()
+        # torch.cuda.synchronize()
+        # start = timer()
 
         scores, inds, clses, ys, xs = self._topk(heat, K=self.max_num)
 
@@ -230,11 +230,11 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
                 "Need to reorganize output as a batch, only "
                 "support post_center_range is not None for now!"
             )
-        torch.cuda.synchronize()
-        end = timer()
-        t_bbox_coders = (end - start) * 1000
-        self.logger.debug(
-            "t_bbox_coders " + "{:.2f}".format(t_bbox_coders)
-        )  # str(t_bbox_coders))
+        # torch.cuda.synchronize()
+        # end = timer()
+        # t_bbox_coders = (end - start) * 1000
+        # self.logger.debug(
+        #     "t_bbox_coders " + "{:.2f}".format(t_bbox_coders)
+        # )  # str(t_bbox_coders))
 
         return predictions_dicts

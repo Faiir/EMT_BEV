@@ -281,7 +281,7 @@ model.load_state_dict(model_dict)
 
 for k, v in model.named_parameters():
     if k.startswith(tuple(relevant_weights)):
-        print(f"turned_of_val for {k}")
+        print(f"turned off grad for {k}")
         v.requires_grad = False
     else:
         print(f"Grad stays for {k}")

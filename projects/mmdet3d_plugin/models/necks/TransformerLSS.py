@@ -202,23 +202,12 @@ class TransformerLSS(BaseModule):
         x, rots, trans, intrins, post_rots, post_trans = input
         B, S, N, C, H, W = x.shape
         # flatten (batch, seq, num_cam)
-        self.logger.debug("LSS Input " + str(x.shape))
         x = x.view(B * S * N, C, H, W)
-        self.logger.debug("LSS Input " + str(x.shape))
-
-        torch.cuda.synchronize()
-        start = timer()
         x = self.depthnet(x)
-        torch.cuda.synchronize()
-        end = timer()
-        t_depthnet = (end - start) * 1000
-        self.logger.debug("LSS Depthnet " + str(t_depthnet))
-        self.logger.debug("LSS Depthnet shape " + str(x.shape))
         depth = self.get_depth_dist(x[:, : self.D])
         # [B * S, N, D, H, W, 3]
-        self.logger.debug("LSS depth shape " + str(depth.shape))
         geom = self.get_geometry(rots, trans, intrins, post_rots, post_trans)
-        self.logger.debug("LSS geom shape " + str(geom.shape))
+
         cvt_feature_list = [x[:, self.D : (self.D + self.numC_Trans)]]
         volume_channel_index = [
             0,
@@ -227,27 +216,20 @@ class TransformerLSS(BaseModule):
             volume_channel_index.append(feature.shape[1] + volume_channel_index[-1])
 
         cvt_feature = torch.cat(cvt_feature_list, dim=1)
-        self.logger.debug("LSS cvt_feature shape " + str(cvt_feature.shape))
+        #self.logger.debug("LSS cvt_feature shape " + str(cvt_feature.shape))
         volume = depth.unsqueeze(1) * cvt_feature.unsqueeze(2)
         volume = volume.view(B * S, N, volume_channel_index[-1], self.D, H, W)
         volume = volume.permute(0, 1, 3, 4, 5, 2)
-        self.logger.debug("LSS volume shape " + str(volume.shape))
+        #self.logger.debug("LSS volume shape " + str(volume.shape))
         if flip_x:
             geom[..., 0] = -geom[..., 0]
         if flip_y:
             geom[..., 1] = -geom[..., 1]
 
-        torch.cuda.synchronize()
-        start = timer()
         bev_feat = self.voxel_pooling(geom, volume)
         bev_feat = bev_feat.view(B, S, *bev_feat.shape[1:])
-        torch.cuda.synchronize()
-        end = timer()
-        t_BEV_pool = (end - start) * 1000
-        self.logger.debug(
-            "LSS t_BEV_pool " + "{:.2f}".format(t_BEV_pool)
-        )  # str(t_BEV_pool))
-        self.logger.debug("LSS t_BEV_pool shape " + str(bev_feat.shape))
+        
+        
         # bev_feat = self.voxel_pooling(geom, volume)
         # bev_feat = bev_feat.view(B, S, *bev_feat.shape[1:])
 
@@ -265,8 +247,6 @@ def gen_dx_bx(xbound, ybound, zbound):
 class QuickCumsum(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, geom_feats, ranks):
-        torch.cuda.synchronize()
-        start = timer()
         x = x.cumsum(0)
         kept = torch.ones(x.shape[0], device=x.device, dtype=torch.bool)
         kept[:-1] = ranks[1:] != ranks[:-1]
@@ -279,14 +259,6 @@ class QuickCumsum(torch.autograd.Function):
 
         # no gradient for geom_feats
         ctx.mark_non_differentiable(geom_feats)
-        torch.cuda.synchronize()
-        end = timer()
-        t_quick_cumsum = (end - start) * 1000
-
-        logger.debug("LSS quick_cumsum " + str(t_quick_cumsum))
-        logger.debug("LSS quick_cumsum shape " + str(x.shape))
-        logger.debug("LSS geom_feats shape " + str(geom_feats.shape))
-
         return x, geom_feats
 
     @staticmethod

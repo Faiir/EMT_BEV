@@ -128,77 +128,55 @@ class Temporal3DConvModel(BaseModule):
         self.with_skip_connect = with_skip_connect
 
     def forward(self, x, future_egomotion, aug_transform=None, img_is_valid=None):
-        with record_function("TEMPORAL_3D"):
-            input_x = x.clone()
+        #with record_function("TEMPORAL_3D"):
+        input_x = x.clone()
 
-            # when warping features from temporal frames, the bev-transform should be considered
-            torch.cuda.synchronize()
-            self.logger.debug("Temp input_x shape " + str(input_x.shape))
-            start = timer()
-            x = self.warper.cumulative_warp_features(
-                x,
-                future_egomotion[:, : x.shape[1]],
-                mode="bilinear",
-                bev_transform=aug_transform,
+        # when warping features from temporal frames, the bev-transform should be considered
+
+        x = self.warper.cumulative_warp_features(
+            x,
+            future_egomotion[:, : x.shape[1]],
+            mode="bilinear",
+            bev_transform=aug_transform,
+        )
+
+        if self.input_egopose:
+            b, s, _, h, w = x.shape
+            input_future_egomotion = future_egomotion[
+                :, : self.receptive_field
+            ].contiguous()
+            input_future_egomotion = input_future_egomotion.view(
+                b, s, -1, 1, 1
+            ).expand(b, s, -1, h, w)
+            input_future_egomotion = torch.cat(
+                (
+                    torch.zeros_like(input_future_egomotion[:, :1]),
+                    input_future_egomotion[:, :-1],
+                ),
+                dim=1,
             )
-            torch.cuda.synchronize()
-            end = timer()
-            t_cumulative_warp_features = (end - start) * 1000
-            self.logger.debug(
-                "Temp cumulative_warp_features "
-                + "{:.2f}".format(t_cumulative_warp_features)
-            )  # str(t_cumulative_warp_features)            )
-            self.logger.debug("Temp cumulative_warp_features shape " + str(x.shape))
+            x = torch.cat((x, input_future_egomotion), dim=2)
 
-            if self.input_egopose:
-                b, s, _, h, w = x.shape
-                input_future_egomotion = future_egomotion[
-                    :, : self.receptive_field
-                ].contiguous()
-                input_future_egomotion = input_future_egomotion.view(
-                    b, s, -1, 1, 1
-                ).expand(b, s, -1, h, w)
-                input_future_egomotion = torch.cat(
-                    (
-                        torch.zeros_like(input_future_egomotion[:, :1]),
-                        input_future_egomotion[:, :-1],
-                    ),
-                    dim=1,
-                )
-                x = torch.cat((x, input_future_egomotion), dim=2)
+        # x with shape [b, t, c, h, w]
+        x_valid = img_is_valid[:, : self.receptive_field]
+        for i in range(x.shape[0]):
+            if x_valid[i].all():
+                continue
+            invalid_index = torch.where(~x_valid[i])[0][0]
+            valid_feat = x[i, invalid_index + 1]
+            x[i, : (invalid_index + 1)] = valid_feat
 
-            # x with shape [b, t, c, h, w]
-            x_valid = img_is_valid[:, : self.receptive_field]
-            self.logger.debug("Temp receptive_field shape " + str(self.receptive_field))
-            self.logger.debug("Temp x_valid shape " + str(x_valid.shape))
+        # Reshape input tensor to (batch, C, time, H, W)
 
-            for i in range(x.shape[0]):
-                if x_valid[i].all():
-                    continue
-                invalid_index = torch.where(~x_valid[i])[0][0]
-                valid_feat = x[i, invalid_index + 1]
-                x[i, : (invalid_index + 1)] = valid_feat
+        x = x.permute(0, 2, 1, 3, 4)
+        x = self.model(x)
+        x = x.permute(0, 2, 1, 3, 4).contiguous()
 
-            # Reshape input tensor to (batch, C, time, H, W)
-            torch.cuda.synchronize()
-            start = timer()
+        # both x & input_x have the shape of (batch, time, C, H, W)
+        if self.with_skip_connect:
+            x += input_x
 
-            x = x.permute(0, 2, 1, 3, 4)
-            x = self.model(x)
-            x = x.permute(0, 2, 1, 3, 4).contiguous()
+        # return features of the present frame
+        x = x[:, self.receptive_field - 1]
 
-            # both x & input_x have the shape of (batch, time, C, H, W)
-            if self.with_skip_connect:
-                x += input_x
-
-            # return features of the present frame
-            x = x[:, self.receptive_field - 1]
-
-            torch.cuda.synchronize()
-            end = timer()
-            t_TempModel = (end - start) * 1000
-            self.logger.debug(
-                "Temp t_TempModel " + "{:.2f}".format(t_TempModel)
-            )  # str(t_TempModel))
-            self.logger.debug("Temp t_TempModel shape" + str(x.shape))
         return x

@@ -148,8 +148,8 @@ class MotionHead(BaseTaskHead):
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
-        torch.cuda.synchronize()
-        start_f = timer()
+        # torch.cuda.synchronize()
+        # start_f = timer()
 
         bevfeats = bevfeats[0]
         for bevf in bevfeats:
@@ -174,20 +174,20 @@ class MotionHead(BaseTaskHead):
             self.logger.debug("Temp present_state shape " + str(present_state.shape))
 
             # sampling probabilistic distribution
-            torch.cuda.synchronize()
-            start = timer()
+            # torch.cuda.synchronize()
+            # start = timer()
             sample, output_distribution = self.distribution_forward(
                 present_state, future_distribution_inputs, noise
             )
-            torch.cuda.synchronize()
-            end = timer()
-            t_distribution_forward = (end - start) * 1000
-            self.logger.debug(
-                "Temp output_distribution shape " + str(output_distribution.shape)
-            )
-            self.logger.debug(
-                "Temp distribution_forward " + "{:.2f}".format(t_distribution_forward)
-            )  # str(t_distribution_forward))
+            # torch.cuda.synchronize()
+            # end = timer()
+            # t_distribution_forward = (end - start) * 1000
+            # self.logger.debug(
+            #     "Temp output_distribution shape " + str(output_distribution.shape)
+            # )
+            # self.logger.debug(
+            #     "Temp distribution_forward " + "{:.2f}".format(t_distribution_forward)
+            # )  # str(t_distribution_forward))
 
             b, _, _, h, w = present_state.shape
             hidden_state = present_state[:, 0]
@@ -220,12 +220,12 @@ class MotionHead(BaseTaskHead):
             for task_key, task_head in self.task_heads.items():
                 res[task_key] = task_head(bevfeats).view(b, 1, -1, h, w)
 
-        torch.cuda.synchronize()
-        end_f = timer()
-        t_motionprediction = (end_f - start_f) * 1000
-        self.logger.debug(
-            "Temp t_motionprediction " + "{:.2f}".format(t_motionprediction)
-        )  # str(t_motionprediction))
+        # torch.cuda.synchronize()
+        # end_f = timer()
+        # t_motionprediction = (end_f - start_f) * 1000
+        # self.logger.debug(
+        #     "Temp t_motionprediction " + "{:.2f}".format(t_motionprediction)
+        # )  # str(t_motionprediction))
 
         return res
 

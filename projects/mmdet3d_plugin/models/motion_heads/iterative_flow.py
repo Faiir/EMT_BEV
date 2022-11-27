@@ -61,85 +61,61 @@ class IterativeFlow(BaseMotionHead):
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
-        torch.cuda.synchronize()
-        start_f = timer()
-        with record_function("iterative_flow_total"):
-            bevfeats = bevfeats[0]
-            if self.training or self.posterior_with_label:
-                (
-                    self.training_labels,
-                    future_distribution_inputs,
-                ) = self.prepare_future_labels(targets)
-            else:
-                future_distribution_inputs = None
-            if targets is not None:
-                (
-                    self.training_labels,
-                    _,
-                ) = self.prepare_future_labels(targets)
-            res = {}
-            if self.n_future > 0:
-                with record_function("iterative_flow_part1"):
-                    present_state = bevfeats.unsqueeze(dim=1).contiguous()
-                    self.logger.debug(
-                        "Temp present_state shape " + str(present_state.shape)
-                    )
+        # torch.cuda.synchronize()
+        # start_f = timer()
+        #with record_function("iterative_flow_total"):
+        bevfeats = bevfeats[0]
+        if self.training or self.posterior_with_label:
+            (
+                self.training_labels,
+                future_distribution_inputs,
+            ) = self.prepare_future_labels(targets)
+        else:
+            future_distribution_inputs = None
+        if targets is not None:
+            (
+                self.training_labels,
+                _,
+            ) = self.prepare_future_labels(targets)
+        res = {}
+        if self.n_future > 0:
+            #with record_function("iterative_flow_part1"):
+            present_state = bevfeats.unsqueeze(dim=1).contiguous()
 
-                    # sampling probabilistic distribution
-                    torch.cuda.synchronize()
-                    start = timer()
-                    sample, output_distribution = self.distribution_forward(
-                        present_state, future_distribution_inputs, noise
-                    )
-                    torch.cuda.synchronize()
-                    end = timer()
-                    t_distribution_forward = (end - start) * 1000
-                    self.logger.debug(
-                        "Temp output_distribution shape "
-                        + str(list(output_distribution.keys()))
-                    )
-                    self.logger.debug("Temp sample shape " + str(sample.shape))
-                    self.logger.debug(
-                        "Temp distribution_forward "
-                        + "{:.2f}".format(t_distribution_forward)
-                    )  # str(t_distribution_forward)                    )
 
-                    b, _, _, h, w = present_state.shape
-                    hidden_state = present_state[:, 0]
+            # sampling probabilistic distribution
 
-                    self.logger.debug(
-                        "Temp hidden_state shape " + str(hidden_state.shape)
-                    )
-                with record_function("iterative_flow_part2_future_prediction"):
-                    future_states = self.future_prediction(sample, hidden_state)
-                    self.logger.debug(
-                        "Temp future_states shape " + str(future_states.shape)
-                    )
-                    future_states = torch.cat([present_state, future_states], dim=1)
-                    self.logger.debug(
-                        "Temp future_states shape " + str(future_states.shape)
-                    )
-                    # flatten dimensions of (batch, sequence)
-                    batch, seq = future_states.shape[:2]
-                    flatten_states = future_states.flatten(0, 1)
 
-                if self.training:
-                    res.update(output_distribution)
+            sample, output_distribution = self.distribution_forward(
+                present_state, future_distribution_inputs, noise
+            )
 
-                for task_key, task_head in self.task_heads.items():
-                    res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
-            else:
-                b, _, h, w = bevfeats.shape
-                for task_key, task_head in self.task_heads.items():
-                    res[task_key] = task_head(bevfeats).view(b, 1, -1, h, w)
+            b, _, _, h, w = present_state.shape
+            hidden_state = present_state[:, 0]
+            #with record_function("iterative_flow_part2_future_prediction"):
+            future_states = self.future_prediction(sample, hidden_state)
+            future_states = torch.cat([present_state, future_states], dim=1)
+            # flatten dimensions of (batch, sequence)
+            batch, seq = future_states.shape[:2]
+            flatten_states = future_states.flatten(0, 1)
 
-            torch.cuda.synchronize()
-            end_f = timer()
-            t_IterativeFlow = (end_f - start_f) * 1000
-            self.logger.debug(
-                " t_IterativeFlow " + "{:.2f}".format(t_IterativeFlow)
-            )  # str(t_IterativeFlow))
+            if self.training:
+                res.update(output_distribution)
 
-            # self.logger.debug("Temp future_states shape " + str(future_states.shape))
-        
+            for task_key, task_head in self.task_heads.items():
+                res[task_key] = task_head(flatten_states).view(batch, seq, -1, h, w)
+        else:
+            b, _, h, w = bevfeats.shape
+            for task_key, task_head in self.task_heads.items():
+                res[task_key] = task_head(bevfeats).view(b, 1, -1, h, w)
+
+        #torch.cuda.synchronize()
+        #end_f = timer()
+        #t_IterativeFlow = (end_f - start_f) * 1000
+        #self.logger.debug(
+        #    " t_IterativeFlow " + "{:.2f}".format(t_IterativeFlow)
+        #)  # str(t_IterativeFlow))
+
+        # self.logger.debug("Temp future_states shape " + str(future_states.shape))
+    
         return res

@@ -36,8 +36,8 @@ class DistributionModule(nn.Module):
         self.fp16_enabled = False
 
     def forward(self, s_t):
-        torch.cuda.synchronize()
-        start = timer()
+        #torch.cuda.synchronize()
+        #start = timer()
 
         b, s = s_t.shape[:2]
         assert s == 1
@@ -50,12 +50,9 @@ class DistributionModule(nn.Module):
         # clip the log_sigma value for numerical stability
         log_sigma = torch.clamp(log_sigma, self.min_log_sigma, self.max_log_sigma)
 
-        torch.cuda.synchronize()
-        end = timer()
-        t_DistributionModule = (end - start) * 1000
-        self.logger.debug(
-            " DistributionModule " + "{:.2f}".format(t_DistributionModule)
-        )  # str(t_DistributionModule))
+        ##torch.cuda.synchronize()
+        #end = timer()
+        #t_DistributionModule = (end - start) * 1000
 
         return mu, log_sigma
 
@@ -86,8 +83,7 @@ class SpatialDistributionModule(nn.Module):
         self.fp16_enabled = False
 
     def forward(self, s_t):
-        torch.cuda.synchronize()
-        start = timer()
+
 
         b, s = s_t.shape[:2]
         assert s == 1
@@ -101,12 +97,6 @@ class SpatialDistributionModule(nn.Module):
         # clip the log_sigma value for numerical stability
         log_sigma = torch.clamp(log_sigma, self.min_log_sigma, self.max_log_sigma)
 
-        torch.cuda.synchronize()
-        end = timer()
-        t_SpatialDistributionModule = (end - start) * 1000
-        self.logger.debug(
-            " SpatialDistributionModule " + "{:.2f}".format(t_SpatialDistributionModule)
-        )  # str(t_SpatialDistributionModule))
 
         return mu, log_sigma
 
@@ -163,8 +153,7 @@ class FuturePrediction(torch.nn.Module):
         # 在每个 gru_block 中，x 为 future_states, hidden_state 为当前的特征
         # grucell 实现了 future_states 沿着时序方向的 updates
         # res_blocks 则是在空域上对特征进行进一步的提取
-        torch.cuda.synchronize()
-        start = timer()
+
         # x has shape (b, n_future, c_latent_dim, h, w), hidden_state (b, c, h, w)
         for i in range(self.n_gru_blocks):
             x = self.spatial_grus[i](x, hidden_state, flow=None)
@@ -173,12 +162,6 @@ class FuturePrediction(torch.nn.Module):
             x = self.res_blocks[i](x.view(b * n_future, c, h, w))
             x = x.view(b, n_future, c, h, w)
 
-        torch.cuda.synchronize()
-        end = timer()
-        t_FuturePrediction = (end - start) * 1000
-        self.logger.debug(
-            " FuturePrediction " + "{:.2f}".format(t_FuturePrediction)
-        )  # str(t_FuturePrediction))
 
         return x
 

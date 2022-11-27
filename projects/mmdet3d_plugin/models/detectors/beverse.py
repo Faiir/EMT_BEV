@@ -87,21 +87,21 @@ class BEVerse(MVXTwoStageDetector):
         imgs = imgs.view(B * S * N, C, imH, imW)
         # print("imgs ", imgs.shape)
         self.logger.debug("original img shape: " + str(imgs.shape))
-        start = timer()
+        #start = timer()
         x = self.img_backbone(imgs)
-        torch.cuda.synchronize()
-        end = timer()
-        t_backbone = (end - start) * 1000
-        self.logger.debug(
-            " IMG backbone todal: " + "{:.2f}".format(t_backbone)
-        )  # t_backbone)
+        #torch.cuda.synchronize()
+        #end = timer()
+        #t_backbone = (end - start) * 1000
+        #self.logger.debug(
+        #    " IMG backbone todal: " + "{:.2f}".format(t_backbone)
+        #)  # t_backbone)
 
         # print(
         #     "after backbone: ",          len(x),
         # )e
         # print("shape in list: ", [x_i.shape for x_i in x])
 
-        start = timer()
+        #start = timer()
         if self.with_img_neck:
             x = self.img_neck(x)
             # print("after backbone with_img_neck: ", x.shape)
@@ -115,31 +115,31 @@ class BEVerse(MVXTwoStageDetector):
         else:
             _, output_dim, ouput_H, output_W = x.shape
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
-        end = timer()
-        t_feature_upscaling = (end - start) * 1000
-        self.logger.debug(
-            "feature upscaling: " + "{:.2f}".format(t_feature_upscaling)
-        )  # t_feature_upscaling)
+        #end = timer()
+        #t_feature_upscaling = (end - start) * 1000
+        #self.logger.debug(
+        #    "feature upscaling: " + "{:.2f}".format(t_feature_upscaling)
+        #)  # t_feature_upscaling)
 
-        self.logger.debug("after transformation: " + str(x.shape))
+        #self.logger.debug("after transformation: " + str(x.shape))
 
         # lifting with LSS
 
-        start = timer()
+        #start = timer()
         # for i in x:
         #     print("img feat shape: ", i.shape)
         x = self.transformer([x] + img[1:])
 
-        torch.cuda.synchronize()
-        end = timer()
-        t_LSS = (end - start) * 1000
+        #torch.cuda.synchronize()
+        #end = timer()
+        #t_LSS = (end - start) * 1000
         # t_BEV = time.time()
-        self.logger.debug("LLS time: " + "{:.2f}".format(t_feature_upscaling))  # t_LSS)
+        #self.logger.debug("LLS time: " + "{:.2f}".format(t_feature_upscaling))  # t_LSS)
 
-        self.logger.debug("after LLS : " + str(x.shape))
+        #self.logger.debug("after LLS : " + str(x.shape))
         # temporal processing
 
-        start = timer()
+        #start = timer()
         x = self.temporal_model(
             x,
             future_egomotion=future_egomotion,
@@ -147,23 +147,16 @@ class BEVerse(MVXTwoStageDetector):
             img_is_valid=img_is_valid,
         )
 
-        torch.cuda.synchronize()
-        end = timer()
-        t_temporal = (end - start) * 1000
+        #torch.cuda.synchronize()
+        #end = timer()
+        #t_temporal = (end - start) * 1000
         # t_temporal = time.time()
-        self.logger.debug(
-            "after Temporal : " + "{:.2f}".format(t_temporal)
-        )  # str(t_temporal))
-        self.logger.debug("after Temporal : " + str(x.shape))
-        if count_time:
-            return x, {
-                "t_LSS": t_LSS,
-                "t_temporal": t_temporal,
-                "t_feature_upscaling": t_feature_upscaling,
-                "t_backbone": t_backbone,
-            }
-        else:
-            return x
+        #self.logger.debug(
+        #    "after Temporal : " + "{:.2f}".format(t_temporal)
+        #)  # str(t_temporal))
+        #self.logger.debug("after Temporal : " + str(x.shape))
+
+        return x
 
     def forward_pts_train(self, pts_feats, img_metas, mtl_targets):
         """Forward function for point cloud branch.
@@ -385,9 +378,9 @@ class BEVerse(MVXTwoStageDetector):
         img_is_valid=None,
     ):
         """Test function without augmentaiton."""
-        torch.cuda.synchronize()
-        # t0 = time.time()
-        start = timer()
+        # torch.cuda.synchronize()
+        # # t0 = time.time()
+        # start = timer()
 
         img_feats, time_stats = self.extract_img_feat(
             img=img,

@@ -220,8 +220,8 @@ class BevEncode(nn.Module):
 
     def forward(self, bev_feat_list):
         # with record_function("BEV_ENCODER"):
-        torch.cuda.synchronize()
-        start = timer()
+        # torch.cuda.synchronize()
+        # start = timer()
 
         feats = []
         x_tmp = bev_feat_list[0]
@@ -251,12 +251,12 @@ class BevEncode(nn.Module):
 
         res = self.up2(res)
         # print(f"res2 {res.shape}")
-        torch.cuda.synchronize()
-        end = timer()
-        t_BEV_Encoder = (end - start) * 1000
-        self.logger.debug(
-            "t_BEV_Encoder " + "{:.2f}".format(t_BEV_Encoder)
-        )  # str(t_BEV_Encoder))
+        # torch.cuda.synchronize()
+        # end = timer()
+        # t_BEV_Encoder = (end - start) * 1000
+        # self.logger.debug(
+        #     "t_BEV_Encoder " + "{:.2f}".format(t_BEV_Encoder)
+        # )  # str(t_BEV_Encoder))
 
         self.logger.debug("BEV_Encoder res shape" + str(res.shape))
         return res
