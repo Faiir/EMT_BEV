@@ -187,8 +187,6 @@ def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
 
 
 torch.backends.cudnn.benchmark = True
-import sys
-print(sys.path)
 
 det_grid_conf = {
     "xbound": [-50.0, 50.0, 0.5],
@@ -214,27 +212,27 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
+cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 
 
 
 
 
 
-cfg = update_cfg(
-    cfg,
-    det_grid_conf=det_grid_conf,
-    grid_conf=det_grid_conf,
-    map_grid_conf=map_grid_conf,
-    motion_grid_conf=motion_grid_conf,
-    point_cloud_range=point_cloud_range_extended_fustrum,
-    #t_input_shape=(90, 155),
-)
+# cfg = update_cfg(
+#     cfg,
+#     det_grid_conf=det_grid_conf,
+#     grid_conf=det_grid_conf,
+#     map_grid_conf=map_grid_conf,
+#     motion_grid_conf=motion_grid_conf,
+#     point_cloud_range=point_cloud_range_extended_fustrum,
+#     #t_input_shape=(90, 155),
+# )
 
 
 #model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
 
-train_setup = False 
+train_setup = True 
 if train_setup:
     cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
@@ -248,7 +246,7 @@ data_loaders = [build_dataloader(
     dist=False,
     shuffle=False,)]
 
-sample = next(iter(data_loaders[0]))
+#sample = next(iter(data_loaders[0]))
 
 
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))

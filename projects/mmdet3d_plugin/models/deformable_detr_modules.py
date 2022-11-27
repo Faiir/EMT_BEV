@@ -2230,3 +2230,143 @@ def build(args):
                 is_thing_map, threshold=0.85)
 
     return model, criterion, postprocessors
+
+
+class MLP(nn.Module):
+    """ Very simple multi-layer perceptron (also called FFN)"""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k)
+                                    for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
+
+
+class depthwise_separable_conv(nn.Module):
+    def __init__(self, nin, nout, padding=1, kernel_size=5, activation1=None, activation2=None):
+        super(depthwise_separable_conv, self).__init__()
+        self.depthwise = nn.Conv2d(
+            nin, nin, kernel_size=kernel_size, padding=padding, groups=nin)
+        self.pointwise = nn.Conv2d(nin, nout, kernel_size=1)
+        self.activation1 = activation1
+        self.activation2 = activation2
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        if self.activation1 is not None:
+            out = self.activation1(out)
+        out = self.pointwise(out)
+        if self.activation1 is not None:
+            out = self.activation2(out)
+        return out
+
+
+class MaskHeadSmallConvIFC(nn.Module):
+    """
+    Simple convolutional head, using group norm.
+    Upsampling is done using a FPN approach
+    """
+
+    def __init__(self, dim, fpn_dims,n_future=3 ,output_dict=None):
+        super().__init__()
+
+        # inter_dims = [dim, context_dim // 2, context_dim // 4,
+        #               context_dim // 8, context_dim // 16, context_dim // 64, context_dim // 128]
+        self.n_future = n_future
+        gn = 8
+
+        self.lay1 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn1 = torch.nn.GroupNorm(gn, dim)
+        self.lay2 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn2 = torch.nn.GroupNorm(gn, dim)
+        self.lay3 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn3 = torch.nn.GroupNorm(gn, dim)
+        self.lay4 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn4 = torch.nn.GroupNorm(gn, dim)
+        self.lay5 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn5 = torch.nn.GroupNorm(gn, dim)
+
+        self.lay6 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+        self.gn6 = torch.nn.GroupNorm(gn, dim)
+
+        self.depth_sep_conv2d = depthwise_separable_conv(
+            dim, dim, kernel_size=5, padding=2, activation1=F.relu, activation2=F.relu)
+
+        # half_dim = dim/2
+        # self.out_lay_1 = torch.nn.Conv2d(
+        #     dim, half_dim, 3, padding=1)
+        # self.out_lay_2 = torch.nn.Conv2d(
+        #     half_dim, 1, 3, padding=1)  # <- This would be differen
+
+        self.convert_to_weight = MLP(dim, dim, dim, 3)
+        # if output_dict is not None:
+        #     self.future_pred_layers = build_output_convs(
+        #         inter_dims[4], output_dict)
+        """ 
+        outheads_
+            - motion_segmentation: 1x5x200x200   - BxFx1xHxW
+        """
+
+        self.dim = dim
+
+        self.adapter1 = torch.nn.Conv2d(fpn_dims[0], dim, 1)
+        self.adapter2 = torch.nn.Conv2d(fpn_dims[1], dim, 1)
+        self.adapter3 = torch.nn.Conv2d(fpn_dims[2], dim, 1)
+        self.adapter4 = torch.nn.Conv2d(fpn_dims[3], dim, 1)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_uniform_(m.weight, a=1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, src, seg_memory, fpns, hs):
+        x = src + seg_memory
+        x = self.lay1(x)
+        x = self.gn1(x)
+        x = F.relu(x)
+
+        cur_fpn = self.adapter1(fpns[0])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        x = self.lay2(x)
+        x = self.gn2(x)
+        x = F.relu(x)
+
+        cur_fpn = self.adapter2(fpns[1])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        x = self.lay3(x)
+        x = self.gn3(x)
+        x = F.relu(x)
+
+        cur_fpn = self.adapter3(fpns[2])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        #print(f"Interpolutaion with expan: {x.shape = }")
+        x = self.lay4(x)
+        x = self.gn4(x)
+        x = F.relu(x)
+
+        cur_fpn = self.adapter4(fpns[3])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        x = self.lay5(x)
+        x = self.gn5(x)
+        x = F.relu(x)
+
+        T = self.n_future
+
+        x = x.unsqueeze(1).repeat(1, T, 1, 1, 1)
+        B, BT, C, H, W = x.shape
+        L, B, N, C = hs.shape
+        x = self.depth_sep_conv2d(x.view(B*BT, C, H, W)).view(B, BT, C, H, W)
+
+        w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
+        w = w.unsqueeze(1).repeat(1, 4, 1, 1, 1)
+
+        mask_logits = F.conv2d(x.view(1, BT*C, H, W),
+                               w.reshape(B*T*L*N, C, 1, 1), groups=BT)
+        mask_logits = mask_logits.view(
+            B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
+        return mask_logits

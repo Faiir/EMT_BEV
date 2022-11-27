@@ -33,7 +33,7 @@ class IterativeFlow(BaseMotionHead):
         **kwargs,
     ):
         super(IterativeFlow, self).__init__(**kwargs)
-        print("IterativeFlow")
+        
         self.logger = logging.getLogger("timelogger")
         if using_v2:
             self.future_prediction = ResFuturePredictionV2(
@@ -141,5 +141,5 @@ class IterativeFlow(BaseMotionHead):
             )  # str(t_IterativeFlow))
 
             # self.logger.debug("Temp future_states shape " + str(future_states.shape))
-        print(list(res.keys()))
+        
         return res

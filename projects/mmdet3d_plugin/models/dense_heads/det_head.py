@@ -73,7 +73,7 @@ class CenterHeadv1(BaseModule):
             "behavior, init_cfg is not allowed to be set"
         )
         super(CenterHeadv1, self).__init__(init_cfg=init_cfg)
-        print("CenterHeadv1")
+        
         self.logger = logging.getLogger("timelogger")
         num_classes = [len(t["class_names"]) for t in tasks]
         self.class_names = [t["class_names"] for t in tasks]
@@ -110,7 +110,7 @@ class CenterHeadv1(BaseModule):
             )
             self.task_heads.append(builder.build_head(separate_head))
 
-        print(self.task_heads)
+        
         
     def forward_single(self, x):
         """Forward function for CenterPoint.
@@ -161,7 +161,7 @@ class CenterHeadv1(BaseModule):
             torch.Tensor: Feature map after gathering with the shape
                 of [B, max_obj, 10].
         """
-        print("_gather_feat")
+        
         dim = feat.size(2)
         ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
         feat = feat.gather(1, ind)
@@ -202,7 +202,7 @@ class CenterHeadv1(BaseModule):
                     - list[torch.Tensor]: Masks indicating which \
                         boxes are valid.
         """
-        print("get_targets")
+        
         heatmaps, anno_boxes, inds, masks = multi_apply(
             self.get_targets_single, gt_bboxes_3d, gt_labels_3d
         )
@@ -238,7 +238,7 @@ class CenterHeadv1(BaseModule):
                 - list[torch.Tensor]: Masks indicating which boxes \
                     are valid.
         """
-        print("get_targets_single")
+        
         device = gt_labels_3d.device
         gt_bboxes_3d = torch.cat(
             (gt_bboxes_3d.gravity_center, gt_bboxes_3d.tensor[:, 3:]), dim=1
@@ -385,7 +385,7 @@ class CenterHeadv1(BaseModule):
         Returns:
             dict[str:torch.Tensor]: Loss of heatmap and bbox of each task.
         """
-        print("Loss Detection")
+        
         heatmaps, anno_boxes, inds, masks = self.get_targets(gt_bboxes_3d, gt_labels_3d)
         loss_dict = dict()
         for task_id, preds_dict in enumerate(preds_dicts):
@@ -437,7 +437,7 @@ class CenterHeadv1(BaseModule):
         Returns:
             list[dict]: Decoded bbox, scores and labels after nms.
         """
-        print("get_BBoxes")
+        
         rets = []
         for task_id, preds_dict in enumerate(preds_dicts):
             num_class_with_bg = self.num_classes[task_id]
@@ -544,7 +544,8 @@ class CenterHeadv1(BaseModule):
         img_metas,
         task_id,
     ):
-        print("get_task_detections")
+        
+    
         """Rotate nms for each task.
 
         Args:

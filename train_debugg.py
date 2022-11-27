@@ -27,6 +27,8 @@ from os import path as osp
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet.datasets import (  # build_dataset,
     replace_ImageToTensor)
+import gc 
+from copy import deepcopy
 
 torch.backends.cudnn.benchmark = True
 
@@ -218,18 +220,18 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
+cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 
 
-cfg = update_cfg(
-    cfg,
-    det_grid_conf=det_grid_conf,
-    grid_conf=det_grid_conf,
-    map_grid_conf=map_grid_conf,
-    motion_grid_conf=motion_grid_conf,
-    point_cloud_range=point_cloud_range_extended_fustrum,
-    t_input_shape=(90, 155),
-)
+# cfg = update_cfg(
+#     cfg,
+#     det_grid_conf=det_grid_conf,
+#     grid_conf=det_grid_conf,
+#     map_grid_conf=map_grid_conf,
+#     motion_grid_conf=motion_grid_conf,
+#     point_cloud_range=point_cloud_range_extended_fustrum,
+#     #t_input_shape=(90, 155),
+# )
 
 cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
@@ -256,24 +258,41 @@ cfg.checkpoint_config.meta = dict(
     PALETTE=dataset.PALETTE  # for segmentors
     if hasattr(dataset, 'PALETTE') else None)
 
+relevant_weights = ["transformer", "img_neck",
+                    "temporal_model", "img_backbone"]
+
+
 weights_tiny = torch.load(
     "/home/niklas/ETM_BEV/BEVerse/weights/clean_weights_tiny.pth")
 
 search_weights = tuple(weights_tiny.keys())
-state_dict_detr = model.state_dict()
-for k in state_dict_detr.keys():
+model_dict = model.state_dict()
+
+
+for k, v in model_dict.items():
     if k in search_weights:
-        try:
-            state_dict_detr[k] = weights_tiny[k].clone()
-            state_dict_detr[k].requires_grad = False 
-        except Exception as e:
-            print(f"Failure for {k}, exception {e}")
+        v = weights_tiny[k].clone()
+        v.requires_grad = False
+        print(
+            f"Loaded weights for {k}, and required grad: {v.requires_grad}")
+    else:
+        print(f"ignored {k}")
+model.load_state_dict(model_dict)
+
+for k, v in model.named_parameters():
+    if k.startswith(tuple(relevant_weights)):
+        print(f"turned_of_val for {k}")
+        v.requires_grad = False
+    else:
+        print(f"Grad stays for {k}")
 
 
-#wrap_fp16_model(model)
+wrap_fp16_model(model)
+
 
 
 model.cuda()
+
 model = MMDataParallel(model, device_ids=[0])
 
 mmcv.mkdir_or_exist(osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/local_train_debug"))

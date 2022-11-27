@@ -1,7 +1,7 @@
 _base_ = ["./beverse_singleframe_org.py"]
 
-receptive_field = 4
-future_frames = 3
+receptive_field = 3
+future_frames = 4
 future_discount = 0.95
 
 model = dict(

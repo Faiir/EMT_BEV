@@ -1,12 +1,14 @@
-_base_ = ["./beverse_singleframe_org.py"]
+_base_ = [
+    './beverse_singleframe_tiny.py'
+]
 
-receptive_field = 4
-future_frames = 3
+receptive_field = 3
+future_frames = 4
 future_discount = 0.95
 
 model = dict(
     temporal_model=dict(
-        type="Temporal3DConvModel",
+        type='Temporal3DConvModel',
         receptive_field=receptive_field,
         input_egopose=True,
         in_channels=64,
@@ -14,23 +16,19 @@ model = dict(
         with_skip_connect=True,
     ),
     pts_bbox_head=dict(
-        task_enable={
-            "3dod": True,
-            "map": False,
-            "motion": True,
+        task_enbale={
+            '3dod': True, 'map': True, 'motion': True,
         },
         task_weights={
-            "3dod": 1.0,
-            "map": 10.0,
-            "motion": 1.0,
+            '3dod': 1.0, 'map': 10.0, 'motion': 1.0,
         },
         cfg_motion=dict(
-            type="IterativeFlow",
+            type='IterativeFlow',
             task_dict={
-                "segmentation": 2,
-                "instance_center": 1,
-                "instance_offset": 2,
-                "instance_flow": 2,
+                'segmentation': 2,
+                'instance_center': 1,
+                'instance_offset': 2,
+                'instance_flow': 2,
             },
             receptive_field=receptive_field,
             n_future=future_frames,
@@ -38,13 +36,13 @@ model = dict(
             n_gru_blocks=1,
             future_discount=future_discount,
             loss_weights={
-                "loss_motion_seg": 5.0,
-                "loss_motion_centerness": 1.0,
-                "loss_motion_offset": 1.0,
-                "loss_motion_flow": 1.0,
-                "loss_motion_prob": 10.0,
+                'loss_motion_seg': 5.0,
+                'loss_motion_centerness': 1.0,
+                'loss_motion_offset': 1.0,
+                'loss_motion_flow': 1.0,
+                'loss_motion_prob': 10.0,
             },
-            sample_ignore_mode="past_valid",
+            sample_ignore_mode='past_valid',
             posterior_with_label=False,
         ),
     ),

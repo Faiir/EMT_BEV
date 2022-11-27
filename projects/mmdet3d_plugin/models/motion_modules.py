@@ -16,7 +16,7 @@ class DistributionModule(nn.Module):
 
     def __init__(self, in_channels, latent_dim, min_log_sigma, max_log_sigma):
         super().__init__()
-        print("Distribution Module ")
+        
         self.compress_dim = in_channels // 2
         self.latent_dim = latent_dim
         self.min_log_sigma = min_log_sigma
@@ -244,7 +244,7 @@ class ResFuturePrediction(torch.nn.Module):
             f"Current_state input Future prediction: {str(current_state.shape)}"
         )
         for i in range(self.n_future):
-            print(f"Predicting t+{i+1}")
+            
             with record_function("Future_Prediction_FlowWarp"):
                 if self.flow_warp:
                     combine = torch.cat((sample_distribution, current_state), dim=1)

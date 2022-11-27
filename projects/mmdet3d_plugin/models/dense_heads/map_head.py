@@ -97,11 +97,7 @@ class BevFeatureSlicer(nn.Module):
             grid = self.map_grid.unsqueeze(0).type_as(x).repeat(x.shape[0], 1, 1, 1)
             ret = F.grid_sample(
                 x, grid=grid, mode="bilinear", align_corners=True)
-            
-            if ret.isnan().sum() > 0:
-                print("bev_feats")
-            if grid.isnan().sum() > 0:
-                print("bev_feats")
+
             return ret 
 
 

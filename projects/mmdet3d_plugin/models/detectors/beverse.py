@@ -446,7 +446,7 @@ class BEVerse(MVXTwoStageDetector):
         1. forward with different image-view & bev-view augmentations
         2. combine dense outputs with averaging
         """
-        print("aug_test")
+
         flip_aug_mask = img_metas[0]["flip_aug"]
         scale_aug_mask = img_metas[0]["scale_aug"]
         assert len(flip_aug_mask) == len(scale_aug_mask) == len(img)
@@ -607,7 +607,7 @@ class BEVerse(MVXTwoStageDetector):
     ):
         # image-view feature extraction
         imgs = img[0]
-        print("extract img feat tta ")
+        
 
         B, S, N, C, imH, imW = imgs.shape
         imgs = imgs.view(B * S * N, C, imH, imW)
