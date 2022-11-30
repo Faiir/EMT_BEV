@@ -66,47 +66,23 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         self.data_aug_conf = data_aug_conf
 
     # shared step
-    def extract_img_feat(
-        self,
-        img,
-        img_metas,
-        future_egomotion=None,
-        aug_transform=None,
-        img_is_valid=None,
-        count_time=False,
-    ):
-        imgs = img[0]
+    def extract_img_feat(self, img, img_metas, future_egomotion=None,
+                         aug_transform=None, img_is_valid=None, count_time=False):
         # image-view feature extraction
-        # with record_function("extract_image_feat_img_backbone"):
-        # imgs = img
-        #start = timer()
+        imgs = img[0]
 
-        # print("batch?: ", imgs.shape)
         B, S, N, C, imH, imW = imgs.shape
-        # print(f"B {B}, S {S}, N {N}, C {C}, imH {imH}, imW {imW}")
         imgs = imgs.view(B * S * N, C, imH, imW)
-        # print("imgs ", imgs.shape)
-        self.logger.debug("original img shape: " + str(imgs.shape))
-        #start = timer()
-        
         x = self.img_backbone(imgs)
-        #torch.cuda.synchronize()
-        #end = timer()
-        #t_backbone = (end - start) * 1000
-        #self.logger.debug(
-        #    " IMG backbone todal: " + "{:.2f}".format(t_backbone)
-        #)  # t_backbone)
 
-        # print(
-        #     "after backbone: ",          len(x),
-        # )e
-        # print("shape in list: ", [x_i.shape for x_i in x])
+        for f in x:
+            if torch.any(torch.isinf(f)):
+                print(f"Found inf / -inf in img_backbone")
+            if f.isnan().sum() > 0 or f.sum() == 0.0:
+                print("img_backbone nan")
 
-        # start = timer()
         if self.with_img_neck:
-            
             x = self.img_neck(x)
-            # print("after backbone with_img_neck: ", x.shape)
 
         if isinstance(x, tuple):
             x_list = []
@@ -117,49 +93,24 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         else:
             _, output_dim, ouput_H, output_W = x.shape
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
-        # end = timer()
-        # t_feature_upscaling = (end - start) * 1000
-        # self.logger.debug(
-        #     "feature upscaling: " + "{:.2f}".format(t_feature_upscaling)
-        # )  # t_feature_upscaling)
-
-        self.logger.debug("after transformation: " + str(x.shape))
 
         # lifting with LSS
-
-        #start = timer()
-        # for i in x:
-        #     print("img feat shape: ", i.shape)
         x = self.transformer([x] + img[1:])
 
-        #torch.cuda.synchronize()
-        #end = timer()
-        #t_LSS = (end - start) * 1000
-        # t_BEV = time.time()
-        #self.logger.debug("LLS time: " + "{:.2f}".format(t_feature_upscaling))  # t_LSS)
+        torch.cuda.synchronize()
+        t_BEV = time.time()
 
-        # self.logger.debug("after LLS : " + str(x.shape))
-        # # temporal processing
+        # temporal processing
+        x = self.temporal_model(x, future_egomotion=future_egomotion,
+                                aug_transform=aug_transform, img_is_valid=img_is_valid)
 
-        # start = timer()
-        
-        x = self.temporal_model(
-            x,
-            future_egomotion=future_egomotion,
-            aug_transform=aug_transform,
-            img_is_valid=img_is_valid,
-        )
+        torch.cuda.synchronize()
+        t_temporal = time.time()
 
-        # torch.cuda.synchronize()
-        # end = timer()
-        # t_temporal = (end - start) * 1000
-        # # t_temporal = time.time()
-        # self.logger.debug(
-        #     "after Temporal : " + "{:.2f}".format(t_temporal)
-        # )  # str(t_temporal))
-        # self.logger.debug("after Temporal : " + str(x.shape))
-
-        return x
+        if count_time:
+            return x, {'t_BEV': t_BEV, 't_temporal': t_temporal}
+        else:
+            return x
 
     def forward_pts_train(self, pts_feats, img_metas, mtl_targets):
         """Forward function for point cloud branch.
@@ -390,7 +341,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
             img_metas=img_metas,
             future_egomotion=future_egomotions,
             img_is_valid=img_is_valid,
-            count_time=True,
+            count_time=False,
         )
         # torch.cuda.synchronize()
         # end = timer()

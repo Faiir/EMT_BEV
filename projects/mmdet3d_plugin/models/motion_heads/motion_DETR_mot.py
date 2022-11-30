@@ -27,15 +27,15 @@ from mmcv.runner import BaseModule
 @HEADS.register_module()
 class Motion_DETR_MOT(BaseModule):
     def __init__(self ,
-                 receptive_field=3,
-                 n_future=0,
-                 future_discount = 0.95,
-                 grid_conf=None,
-                 class_weights=[1.0, 2.0],
+                receptive_field=3,
+                n_future=0,
+                future_discount = 0.95,
+                grid_conf=None,
+                #class_weights=[1.0, 2.0],
                 hidden_dim=512, 
                 nheads=8,
                 use_topk=True,
-                
+                 aux_loss=True, 
                 ignore_index=255,
                 num_queries=300,
                 #posterior_with_label=False, TODO 
@@ -97,22 +97,24 @@ class Motion_DETR_MOT(BaseModule):
             self.class_mlps.append(MLP(hidden_dim, hidden_dim,
                               output_dim=self.num_classes + 1, num_layers=2))
             
-            
-        fpn_dims_input = [512, 256, 128, 64]
+        self.class_mlps = nn.ModuleList(self.class_mlps)
+        self.fpn_dims_input = [64, 128, 256, 512]
         fpn_dims = [256, 256, 256, 256]
         
         self.project_convs = []
-        for _in,out in zip(fpn_dims_input,fpn_dims):
+        for _in,out in zip(self.fpn_dims_input,fpn_dims):
             self.project_convs.append(nn.Conv2d(_in, out, 3, padding=1))
         
+        self.project_convs = nn.ModuleList(self.project_convs)
         
-        self.mask_conv = MaskHeadSmallConvIFC(
-            hidden_dim, fpn_dims, hidden_dim)
+        print(f"{self.n_future = }")
+        self.mask_head = MaskHeadSmallConvIFC(
+            hidden_dim, fpn_dims, n_future=self.n_future)
 
 
         self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
-
+        self.aux_loss = aux_loss
 
         #self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
@@ -131,12 +133,14 @@ class Motion_DETR_MOT(BaseModule):
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
+
+        
         input_projections = []
         for c,proj_conv in enumerate(self.project_convs):
-            input_projections.append(proj_conv(pyramid_bev_feats[c]))
+            input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
         outputs_masks = self.mask_head(
-            pyramid_bev_feats[-1], seg_memory, input_projections, hs)
+           seg_memory, input_projections, hs)
 
         outputs_class = []
         for class_mlp in self.class_mlps:

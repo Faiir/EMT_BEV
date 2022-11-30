@@ -115,10 +115,10 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                 
                 if task_name == "map":
                     out_channels = out_channels_map
-                elif task_name == "3dod":
+                elif task_name == "3dod" or task_name == "motion":
                     out_channels = out_channels_det
-                elif task_name == "motion":
-                    continue # shared encoder 3dod / motion
+                    task_name = "shared"
+                    print("Constructing task_feat_encoder with", task_name)
                 else:
                     print("standard outchannels 256")
                     out_channels = 256
@@ -135,22 +135,24 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                     out_with_activision=out_with_activision,
                 )
 
-        #print(self.taskfeat_encoders["3dod"])
+
         
         # build task-decoders
         self.task_decoders = nn.ModuleDict()
         self.task_feat_cropper = nn.ModuleDict()
 
         # 3D object detection
+        self.det_enabled = task_enable.get("3dod", False)
         if task_enable.get("3dod", False):
             cfg_3dod.update(train_cfg=train_cfg)
             cfg_3dod.update(test_cfg=test_cfg)
 
-            self.task_feat_cropper["3dod"] = BevFeatureSlicer(
+            self.task_feat_cropper["shared"] = BevFeatureSlicer(
                 grid_conf, det_grid_conf)
             self.task_decoders["3dod"] = builder.build_head(cfg_3dod)
 
         # static map
+        self.map_enabled = task_enable.get("map", False)
         if task_enable.get("map", False):
             cfg_map.update(train_cfg=train_cfg)
             cfg_map.update(test_cfg=test_cfg)
@@ -165,7 +167,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             cfg_motion.update(train_cfg=train_cfg)
             cfg_motion.update(test_cfg=test_cfg)
             self.motion_enabled = True
-            self.task_feat_cropper["motion"] = BevFeatureSlicer(
+            self.task_feat_cropper["shared"] = BevFeatureSlicer(
                 grid_conf, motion_grid_conf
             )
             self.task_decoders["motion"] = builder.build_head(cfg_motion)
@@ -370,16 +372,22 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         #for task_name, task_feat_encoder in self.taskfeat_encoders.items():
 
         # crop feature before the encoder
-        task_feat = self.task_feat_cropper["map"](bev_feats)
-        self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
-        # task-specific feature encoder
-        map_feat = self.taskfeat_encoders["map"]([task_feat])
-        map_pred = self.task_decoders["map"]([map_feat])
+        if self.map_enabled:
+            task_feat = self.task_feat_cropper["map"](bev_feats)
+            self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
+            # task-specific feature encoder
+            map_feat = self.taskfeat_encoders["map"]([task_feat])
+            map_pred = self.task_decoders["map"]([map_feat])
+            predictions["map"] = map_pred
+            
+            
+            self.logger.debug(
+                f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
+        
+        shared_feat = self.task_feat_cropper["shared"](bev_feats)
+        task_feat = self.taskfeat_encoders["shared"]([shared_feat])
 
-        self.logger.debug(
-            f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
-        det_feat = self.task_feat_cropper["3dod"](bev_feats)
-        task_feat = self.taskfeat_encoders["3dod"]([det_feat])
+        # Deformable DETR 
         b,c,h,w = task_feat.shape
         task_mask = mask = torch.zeros(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
@@ -430,28 +438,19 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         if hs.isnan().sum() > 0 or hs.sum() == 0.0:
             print("hs")
         #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
-        dod_pred = self.task_decoders["3dod"](
-                hs,init_reference)
-
+        if self.det_enabled:
+            dod_pred = self.task_decoders["3dod"](
+                    hs,init_reference)
+            predictions["3dod"] = dod_pred
         
-        # if self.flow_warp:
-        #     future_egomotion = targets["future_egomotion"]
-        #     for _ in range(self.n_future):
-        #         warp_state = self.warper.cumulative_warp_features_reverse(
-        #             segmentation_labels.float().unsqueeze(2),
-        #             future_egomotion[:, (self.receptive_field - 1):],
-        #             mode="nearest",
-        #             bev_transform=bev_transform,
-        #                 ).long().contiguous()
-                
-        #         warped_bev_feats.append(warp_state)
+
         if self.motion_enabled:
             motion_pred = self.task_decoders["motion"](
                 hs, init_reference, seg_memory, seg_mask, features)
             predictions["motion"] = motion_pred
         
-        predictions["map"] = map_pred
-        predictions["3dod"] = dod_pred
+        
+        
         
         
         return predictions

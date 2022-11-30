@@ -2324,49 +2324,51 @@ class MaskHeadSmallConvIFC(nn.Module):
                 nn.init.kaiming_uniform_(m.weight, a=1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, src, seg_memory, fpns, hs):
-        x = src + seg_memory
+    def forward(self, seg_memory, fpns, hs):
+        x = seg_memory
         x = self.lay1(x)
         x = self.gn1(x)
         x = F.relu(x)
-
-        cur_fpn = self.adapter1(fpns[0])
+        
+        cur_fpn = self.adapter1(fpns[-1])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         x = self.lay2(x)
         x = self.gn2(x)
         x = F.relu(x)
-
-        cur_fpn = self.adapter2(fpns[1])
+        
+        cur_fpn = self.adapter2(fpns[-2])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         x = self.lay3(x)
         x = self.gn3(x)
         x = F.relu(x)
-
-        cur_fpn = self.adapter3(fpns[2])
+        
+        cur_fpn = self.adapter3(fpns[-3])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
-        #print(f"Interpolutaion with expan: {x.shape = }")
         x = self.lay4(x)
         x = self.gn4(x)
         x = F.relu(x)
-
-        cur_fpn = self.adapter4(fpns[3])
+        
+        cur_fpn = self.adapter4(fpns[-4])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         x = self.lay5(x)
         x = self.gn5(x)
         x = F.relu(x)
-
+        
         T = self.n_future
 
         x = x.unsqueeze(1).repeat(1, T, 1, 1, 1)
         B, BT, C, H, W = x.shape
         L, B, N, C = hs.shape
+        
         x = self.depth_sep_conv2d(x.view(B*BT, C, H, W)).view(B, BT, C, H, W)
-
+        
         w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
         w = w.unsqueeze(1).repeat(1, 4, 1, 1, 1)
 
         mask_logits = F.conv2d(x.view(1, BT*C, H, W),
                                w.reshape(B*T*L*N, C, 1, 1), groups=BT)
+        
+        
         mask_logits = mask_logits.view(
             B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
         return mask_logits
