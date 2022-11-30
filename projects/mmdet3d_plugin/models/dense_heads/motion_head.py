@@ -381,7 +381,7 @@ class MotionHead(BaseTaskHead):
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
         loss_dict = {}
-
+        print("MOTION HEAD LOSS ")
         """
         prediction dict:
             'segmentation': 2,

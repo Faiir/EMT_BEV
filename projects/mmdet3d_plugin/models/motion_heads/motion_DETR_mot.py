@@ -5,24 +5,15 @@ import torch.nn.functional as F
 import numpy as np
 import logging
 from mmdet3d.models.builder import HEADS
-from ..dense_heads.base_taskhead import BaseTaskHead
-from ..dense_heads.loss_utils import (
-    MotionSegmentationLoss,
-    SpatialRegressionLoss,
-    ProbabilisticLoss,
-    GaussianFocalLoss,
-    SpatialProbabilisticLoss,
-)
+
 
 from ...datasets.utils.geometry import cumulative_warp_features_reverse
 from ...datasets.utils.instance import predict_instance_segmentation_and_trajectories
 from ...datasets.utils.warper import FeatureWarper
-from ..motion_modules import warp_with_flow
 from ...visualize import Visualizer
-from ._base_motion_head import BaseMotionHead
+
 
 from ..deformable_detr_modules import MLP, MaskHeadSmallConvIFC
-from ..deformable_detr_utils import inverse_sigmoid
 from mmdet.core import build_assigner
 
 
@@ -41,15 +32,14 @@ class Motion_DETR_MOT(BaseModule):
                  future_discount = 0.95,
                  grid_conf=None,
                  class_weights=[1.0, 2.0],
-                flow_warp=True,
                 hidden_dim=512, 
                 nheads=8,
                 use_topk=True,
-                topk_ratio=0.25,
+                
                 ignore_index=255,
                 num_queries=300,
-                posterior_with_label=False,
-                sample_ignore_mode="all_valid",
+                #posterior_with_label=False, TODO 
+                sample_ignore_mode="all_valid", # TODO 
                 loss_weights=None,
                 matcher_config={
                      "cost_class": 1,
@@ -167,15 +157,13 @@ class Motion_DETR_MOT(BaseModule):
         super().init_weights()
         if "instance_center" in self.task_heads:
             self.task_heads["instance_center"][-1].bias.data.fill_(self.init_bias)
-        if self.flow_warp:
-            self.offset_pred.weight.data.normal_(0.0, 0.02)
-            self.offset_pred.bias.data.fill_(0)
+
 
     def prepare_future_labels(self, batch, mask_stride=2, match_stride=2):
-        segmentation_labels = batch["motion_segmentation"][0]
+        #segmentation_labels = batch["motion_segmentation"][0]
         gt_instance = batch["motion_instance"][0]
         future_egomotion = batch["future_egomotions"][0]
-        batch_size = len(segmentation_labels)
+        batch_size = len(gt_instance)
         labels = {}
 
         bev_transform = batch.get("aug_transform", None)

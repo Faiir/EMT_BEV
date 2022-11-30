@@ -1,12 +1,10 @@
-import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .basic_modules import Bottleneck, SpatialGRU, ConvBlock, GRUCell
-from timeit import default_timer as timer
+
 import pdb
 import copy
-from torch.profiler import record_function
 
 
 class DistributionModule(nn.Module):
@@ -14,46 +12,37 @@ class DistributionModule(nn.Module):
     A convolutional net that parametrises a diagonal Gaussian distribution.
     """
 
-    def __init__(self, in_channels, latent_dim, min_log_sigma, max_log_sigma):
+    def __init__(
+            self, in_channels, latent_dim, min_log_sigma, max_log_sigma):
         super().__init__()
-        
         self.compress_dim = in_channels // 2
         self.latent_dim = latent_dim
         self.min_log_sigma = min_log_sigma
         self.max_log_sigma = max_log_sigma
-        self.logger = logging.getLogger("timelogger")
+
         self.encoder = DistributionEncoder(
             in_channels,
             self.compress_dim,
         )
         self.last_conv = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(
-                self.compress_dim, out_channels=2 * self.latent_dim, kernel_size=1
-            ),
+            nn.AdaptiveAvgPool2d(1), nn.Conv2d(
+                self.compress_dim, out_channels=2 * self.latent_dim, kernel_size=1)
         )
 
         self.fp16_enabled = False
 
     def forward(self, s_t):
-        #torch.cuda.synchronize()
-        #start = timer()
-
         b, s = s_t.shape[:2]
         assert s == 1
         encoding = self.encoder(s_t[:, 0])
 
         mu_log_sigma = self.last_conv(encoding).view(b, 1, 2 * self.latent_dim)
-        mu = mu_log_sigma[:, :, : self.latent_dim]
-        log_sigma = mu_log_sigma[:, :, self.latent_dim :]
+        mu = mu_log_sigma[:, :, :self.latent_dim]
+        log_sigma = mu_log_sigma[:, :, self.latent_dim:]
 
         # clip the log_sigma value for numerical stability
-        log_sigma = torch.clamp(log_sigma, self.min_log_sigma, self.max_log_sigma)
-
-        ##torch.cuda.synchronize()
-        #end = timer()
-        #t_DistributionModule = (end - start) * 1000
-
+        log_sigma = torch.clamp(
+            log_sigma, self.min_log_sigma, self.max_log_sigma)
         return mu, log_sigma
 
 
@@ -62,13 +51,14 @@ class SpatialDistributionModule(nn.Module):
     A convolutional net that parametrises a diagonal Gaussian distribution.
     """
 
-    def __init__(self, in_channels, latent_dim, min_log_sigma, max_log_sigma):
+    def __init__(
+            self, in_channels, latent_dim, min_log_sigma, max_log_sigma):
         super().__init__()
         self.compress_dim = in_channels // 2
         self.latent_dim = latent_dim
         self.min_log_sigma = min_log_sigma
         self.max_log_sigma = max_log_sigma
-        self.logger = logging.getLogger("timelogger")
+
         self.encoder = DistributionEncoder(
             in_channels,
             self.compress_dim,
@@ -76,44 +66,39 @@ class SpatialDistributionModule(nn.Module):
 
         # difference: remove global average pooling
         self.last_conv = nn.Sequential(
-            nn.Conv2d(
-                self.compress_dim, out_channels=2 * self.latent_dim, kernel_size=1
-            )
+            nn.Conv2d(self.compress_dim, out_channels=2 *
+                      self.latent_dim, kernel_size=1)
         )
         self.fp16_enabled = False
 
     def forward(self, s_t):
-
-
         b, s = s_t.shape[:2]
         assert s == 1
         encoding = self.encoder(s_t[:, 0])
 
         # [batch, latent_dim, h, w]
         mu_log_sigma = self.last_conv(encoding)
-        mu = mu_log_sigma[:, : self.latent_dim]
-        log_sigma = mu_log_sigma[:, self.latent_dim :]
+        mu = mu_log_sigma[:, :self.latent_dim]
+        log_sigma = mu_log_sigma[:, self.latent_dim:]
 
         # clip the log_sigma value for numerical stability
-        log_sigma = torch.clamp(log_sigma, self.min_log_sigma, self.max_log_sigma)
-
+        log_sigma = torch.clamp(
+            log_sigma, self.min_log_sigma, self.max_log_sigma)
 
         return mu, log_sigma
 
 
 class DistributionEncoder(nn.Module):
-    """Encodes s_t or (s_t, y_{t+1}, ..., y_{t+H})."""
+    """Encodes s_t or (s_t, y_{t+1}, ..., y_{t+H}).
+    """
 
     def __init__(self, in_channels, out_channels, num_layer=2):
         super().__init__()
 
         layers = []
         for _ in range(num_layer):
-            layers.append(
-                Bottleneck(
-                    in_channels=in_channels, out_channels=out_channels, downsample=True
-                )
-            )
+            layers.append(Bottleneck(in_channels=in_channels,
+                          out_channels=out_channels, downsample=True))
             in_channels = out_channels
 
         self.model = nn.Sequential(*layers)
@@ -127,23 +112,19 @@ class FuturePrediction(torch.nn.Module):
     def __init__(self, in_channels, latent_dim, n_gru_blocks=3, n_res_layers=3):
         super().__init__()
         self.n_gru_blocks = n_gru_blocks
-
+        print("FuturePrediction")
         # Convolutional recurrent model with z_t as an initial hidden state and inputs the sample
         # from the probabilistic model. The architecture of the model is:
         # [Spatial GRU - [Bottleneck] x n_res_layers] x n_gru_blocks
         self.spatial_grus = []
         self.res_blocks = []
-        self.logger = logging.getLogger("timelogger")
-        print("Future Prediction")
+
         # 第一个 gru_block 将低维的 random_variable 转为高维的 特征
         for i in range(self.n_gru_blocks):
             gru_in_channels = latent_dim if i == 0 else in_channels
             self.spatial_grus.append(SpatialGRU(gru_in_channels, in_channels))
-            self.res_blocks.append(
-                torch.nn.Sequential(
-                    *[Bottleneck(in_channels) for _ in range(n_res_layers)]
-                )
-            )
+            self.res_blocks.append(torch.nn.Sequential(*[Bottleneck(in_channels)
+                                                         for _ in range(n_res_layers)]))
 
         self.spatial_grus = torch.nn.ModuleList(self.spatial_grus)
         self.res_blocks = torch.nn.ModuleList(self.res_blocks)
@@ -162,28 +143,25 @@ class FuturePrediction(torch.nn.Module):
             x = self.res_blocks[i](x.view(b * n_future, c, h, w))
             x = x.view(b, n_future, c, h, w)
 
-
         return x
 
 
 class ResFuturePrediction(torch.nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        latent_dim,
-        n_future,
-        detach_state=True,
-        n_gru_blocks=3,
-        flow_warp=True,
-        prob_each_future=False,
-    ):
+    def __init__(self,
+                 in_channels,
+                 latent_dim,
+                 n_future,
+                 detach_state=True,
+                 n_gru_blocks=3,
+                 flow_warp=True,
+                 prob_each_future=False,
+                 ):
         super().__init__()
         self.n_future = n_future
         self.detach_state = detach_state
         self.flow_warp = flow_warp
         self.prob_each_future = prob_each_future
-        self.logger = logging.getLogger("timelogger")
-        print("Future Prediction")
+        print("ResFuturePrediction")
         # 每个时刻，都以 sample_distribution 和 当前帧的 bev features 作为输入
         # 1. offset prediction: 预测 feature flow ==> warp features
         # 2. gru_cell: reset & update
@@ -193,16 +171,14 @@ class ResFuturePrediction(torch.nn.Module):
         if self.flow_warp:
             self.offset_conv = ConvBlock(in_channels=latent_dim + in_channels)
             self.offset_pred = nn.Conv2d(
-                latent_dim + in_channels, 2, kernel_size=1, padding=0
-            )
+                latent_dim + in_channels, 2, kernel_size=1, padding=0)
 
         # gru_cell
         self.gru_cells = nn.ModuleList()
         gru_in_channels = in_channels + latent_dim
         for _ in range(n_gru_blocks):
             self.gru_cells.append(
-                GRUCell(input_size=gru_in_channels, hidden_size=in_channels)
-            )
+                GRUCell(input_size=gru_in_channels, hidden_size=in_channels))
             gru_in_channels = in_channels
 
         # spatial conv
@@ -223,31 +199,23 @@ class ResFuturePrediction(torch.nn.Module):
         # x has shape (b, c_latent_dim, h, w), hidden_state (b, c, h, w)
         res = []
         current_state = hidden_state
-        self.logger.debug(
-            f"Current_state input Future prediction: {str(current_state.shape)}"
-        )
         for i in range(self.n_future):
-            
-            with record_function("Future_Prediction_FlowWarp"):
-                if self.flow_warp:
-                    combine = torch.cat((sample_distribution, current_state), dim=1)
 
-                    flow = self.offset_pred(self.offset_conv(combine))
+            if self.flow_warp:
+                combine = torch.cat(
+                    (sample_distribution, current_state), dim=1)
+                flow = self.offset_pred(self.offset_conv(combine))
+                warp_state = warp_with_flow(current_state, flow=flow)
+                warp_state = torch.cat(
+                    (warp_state, sample_distribution), dim=1)
+            else:
+                warp_state = torch.cat(
+                    (sample_distribution, current_state), dim=1)
 
-                    warp_state = warp_with_flow(current_state, flow=flow)
+            for gru_cell in self.gru_cells:
+                warp_state = gru_cell(warp_state, state=current_state)
 
-                    warp_state = torch.cat((warp_state, sample_distribution), dim=1)
-
-                else:
-                    warp_state = torch.cat((sample_distribution, current_state), dim=1)
-
-            with record_function("Future_Predeiction_GRU_Pred"):
-                for gru_cell in self.gru_cells:
-                    warp_state = gru_cell(warp_state, state=current_state)
-
-            with record_function("Future_Prediction_SpatialConv"):
-                warp_state = self.spatial_conv(warp_state)
-
+            warp_state = self.spatial_conv(warp_state)
             res.append(warp_state)
 
             # updating current states
@@ -260,25 +228,24 @@ class ResFuturePrediction(torch.nn.Module):
 
 
 class ResFuturePredictionV2(torch.nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        latent_dim,
-        n_future,
-        detach_state=True,
-        n_gru_blocks=3,
-        flow_warp=True,
-        prob_each_future=False,
-        with_state_refine=True,
-    ):
+    def __init__(self,
+                 in_channels,
+                 latent_dim,
+                 n_future,
+                 detach_state=True,
+                 n_gru_blocks=3,
+                 flow_warp=True,
+                 prob_each_future=False,
+                 with_state_refine=True,
+                 ):
         super().__init__()
+        print("ResFuturePredictionV2")
         self.n_future = n_future
         self.detach_state = detach_state
         self.flow_warp = flow_warp
         self.prob_each_future = prob_each_future
         self.with_state_refine = with_state_refine
-        self.logger = logging.getLogger("timelogger")
-        print("ResFuturePredictionV2")
+
         # 每个时刻，都以 sample_distribution 和 当前帧的 bev features 作为输入
         # 1. offset prediction: 预测 feature flow ==> warp features
         # 2. gru_cell: reset & update
@@ -288,7 +255,8 @@ class ResFuturePredictionV2(torch.nn.Module):
         if self.flow_warp:
             flow_pred = nn.Sequential(
                 ConvBlock(in_channels=latent_dim + in_channels),
-                nn.Conv2d(latent_dim + in_channels, 2, kernel_size=1, padding=0),
+                nn.Conv2d(latent_dim + in_channels, 2,
+                          kernel_size=1, padding=0),
             )
 
         # gru_cell
@@ -296,8 +264,7 @@ class ResFuturePredictionV2(torch.nn.Module):
         gru_in_channels = in_channels + latent_dim
         for _ in range(n_gru_blocks):
             self.gru_cells.append(
-                GRUCell(input_size=gru_in_channels, hidden_size=in_channels)
-            )
+                GRUCell(input_size=gru_in_channels, hidden_size=in_channels))
             gru_in_channels = in_channels
 
         # spatial conv
@@ -314,12 +281,10 @@ class ResFuturePredictionV2(torch.nn.Module):
         else:
             if self.flow_warp:
                 self.flow_preds = nn.ModuleList(
-                    [flow_pred for _ in range(self.n_future)]
-                )
+                    [flow_pred for _ in range(self.n_future)])
 
             self.spatial_convs = nn.ModuleList(
-                [spatial_conv for _ in range(self.n_future)]
-            )
+                [spatial_conv for _ in range(self.n_future)])
 
         self.init_weights()
 
@@ -333,31 +298,23 @@ class ResFuturePredictionV2(torch.nn.Module):
         # x has shape (b, c_latent_dim, h, w), hidden_state (b, c, h, w)
         res = []
         current_state = hidden_state
-        self.logger.debug(
-            f"Current_state input Future prediction: {str(current_state.shape)}"
-        )
         for i in range(self.n_future):
             if self.flow_warp:
-                combine = torch.cat((sample_distribution, current_state), dim=1)
+                combine = torch.cat(
+                    (sample_distribution, current_state), dim=1)
                 flow = self.flow_preds[i](combine)
 
                 warp_state = warp_with_flow(current_state, flow=flow)
-                warp_state = torch.cat((warp_state, sample_distribution), dim=1)
-                self.logger.debug(
-                    f"warp_state input Future prediction: {str(warp_state.shape)}"
-                )
+                warp_state = torch.cat(
+                    (warp_state, sample_distribution), dim=1)
             else:
-                warp_state = torch.cat((current_state, sample_distribution), dim=1)
-                self.logger.debug(
-                    f"warp_state input Future prediction: {str(warp_state.shape)}"
-                )
+                warp_state = torch.cat(
+                    (current_state, sample_distribution), dim=1)
 
             for gru_cell in self.gru_cells:
                 warp_state = gru_cell(warp_state, state=current_state)
 
-            self.logger.debug(f"before spacial conv n: {str(warp_state.shape)}")
             warp_state = self.spatial_convs[i](warp_state)
-            self.logger.debug(f"after spacial conv n: {str(warp_state.shape)}")
             res.append(warp_state)
 
             # updating current states
@@ -381,6 +338,7 @@ class ResFuturePredictionV1(torch.nn.Module):
         prob_each_future=False,
     ):
         super().__init__()
+        print("ResFuturePredictionV1")
         self.n_future = n_future
         self.detach_state = detach_state
         self.flow_warp = flow_warp
@@ -388,14 +346,14 @@ class ResFuturePredictionV1(torch.nn.Module):
         self.hidden_size = in_channels
         self.n_gru_blocks = n_gru_blocks
         self.prob_each_future = prob_each_future
-        self.logger = logging.getLogger("timelogger")
-        print("ResFuturePredictionV1")
+
         # offset prediction
         if self.flow_warp:
             # 输入为上一个时刻的特征 + 采样的分布
             self.flow_pred = nn.Sequential(
                 ConvBlock(in_channels=latent_dim + in_channels),
-                nn.Conv2d(latent_dim + in_channels, 2, kernel_size=1, padding=0),
+                nn.Conv2d(latent_dim + in_channels, 2,
+                          kernel_size=1, padding=0),
             )
 
         # 为每个时刻都生成一个分布 ?
@@ -406,19 +364,18 @@ class ResFuturePredictionV1(torch.nn.Module):
         for i in range(n_gru_blocks):
             if i == 0:
                 self.spatial_grus.append(
-                    GRUCell(input_size=gru_in_channels, hidden_size=in_channels)
-                )
+                    GRUCell(input_size=gru_in_channels, hidden_size=in_channels))
             else:
                 self.spatial_grus.append(
-                    SpatialGRU(input_size=gru_in_channels, hidden_size=in_channels)
-                )
+                    SpatialGRU(input_size=gru_in_channels, hidden_size=in_channels))
 
             gru_in_channels = in_channels
             # spatial conv
             self.spatial_convs.append(
                 nn.Sequential(
                     ConvBlock(in_channels=in_channels),
-                    nn.Conv2d(in_channels, in_channels, kernel_size=1, padding=0),
+                    nn.Conv2d(in_channels, in_channels,
+                              kernel_size=1, padding=0),
                 ),
             )
 
@@ -435,26 +392,25 @@ class ResFuturePredictionV1(torch.nn.Module):
 
         if self.prob_each_future:
             future_distributions = torch.split(
-                sample_distribution, self.latent_dim, dim=1
-            )
+                sample_distribution, self.latent_dim, dim=1)
         else:
             future_distributions = [sample_distribution] * self.n_future
 
         # initialize hidden state
         b, _, h, w = hidden_state.shape
-        rnn_state = torch.zeros(b, self.hidden_size, h, w).type_as(hidden_state)
+        rnn_state = torch.zeros(b, self.hidden_size, h,
+                                w).type_as(hidden_state)
         for i in range(self.n_future):
             if self.flow_warp:
-                combine = torch.cat((future_distributions[i], current_state), dim=1)
+                combine = torch.cat(
+                    (future_distributions[i], current_state), dim=1)
                 flow = self.flow_pred(combine)
                 current_state = warp_with_flow(current_state, flow=flow)
-            self.logger.debug(
-                f"Before Combining: {str(future_distributions[i].shape), str(current_state.shape)}"
-            )
-            combine = torch.cat((future_distributions[i], current_state), dim=1)
-            self.logger.debug(f"after combine: { str(combine.shape)}")
+
+            combine = torch.cat(
+                (future_distributions[i], current_state), dim=1)
             rnn_state = self.spatial_grus[0](combine, rnn_state)
-            self.logger.debug(f"after rnn_state: { str(rnn_state.shape)}")
+
             # update
             if self.detach_state:
                 current_state = rnn_state.detach()
@@ -465,42 +421,31 @@ class ResFuturePredictionV1(torch.nn.Module):
         # [b, t, c, h, w]
         future_states = torch.stack(future_states, dim=1)
         b, t, c, h, w = future_states.shape
-        self.logger.debug(f"before future_states flatten: { str(future_states.shape)}")
         future_states = self.spatial_convs[0](future_states.flatten(0, 1))
-        self.logger.debug(f"after future_states flattem: { str(future_states.shape)}")
         future_states = future_states.view(b, t, c, h, w)
 
         # further updating
         for k in range(1, self.n_gru_blocks):
             future_states = self.spatial_grus[k](future_states)
-            future_states = self.spatial_convs[k](future_states.flatten(0, 1)).view(
-                b, t, c, h, w
-            )
-        self.logger.debug(
-            f"after future_states further updating: { str(future_states.shape)}"
-        )
+            future_states = self.spatial_convs[k](
+                future_states.flatten(0, 1)).view(b, t, c, h, w)
+
         return future_states
-
-
-logger = logging.getLogger("timelogger")
 
 
 def warp_with_flow(x, flow):
     B, C, H, W = x.size()
-    logger.debug(f"Warp input: {x.shape}")
     # mesh grid
     xx = torch.arange(0, W).view(1, -1).repeat(H, 1)
     yy = torch.arange(0, H).view(-1, 1).repeat(1, W)
     xx = xx.view(1, 1, H, W).repeat(B, 1, 1, 1)
     yy = yy.view(1, 1, H, W).repeat(B, 1, 1, 1)
     grid = torch.cat((xx, yy), dim=1).float()
-    logger.debug(f"grid input: {grid.shape}")
     flow += grid.type_as(flow)
     flow = flow.permute(0, 2, 3, 1)
-    logger.debug(f"flow input: {flow.shape}")
 
     flow[..., 0] = flow[..., 0] / (W - 1) * 2 - 1.0
     flow[..., 1] = flow[..., 1] / (H - 1) * 2 - 1.0
-    x = F.grid_sample(x, flow, mode="bilinear", align_corners=True)
-    logger.debug(f"flow output: {x.shape}")
+    x = F.grid_sample(x, flow, mode='bilinear', align_corners=True)
+
     return x

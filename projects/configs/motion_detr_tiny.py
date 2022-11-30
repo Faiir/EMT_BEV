@@ -15,9 +15,9 @@ model = dict(
     ),
     pts_bbox_head=dict(
         task_enable={
-            "3dod": True,
-            "map": True,
-            "motion": False,
+            "3dod": False,
+            "map": False,
+            "motion": True,
         },
         task_weights={
             "3dod": 1.0,
@@ -33,20 +33,27 @@ model = dict(
                 # 'instance_flow': 2,
             },
             #in_channels=256,
-            hidden_dim=1024,
+            hidden_dim=256,
             nheads=8,
             use_topk=True,
-            topk_ratio=0.25,
             num_queries=300,
             class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
-            loss_weights={
-                "loss_motion_seg": 1.0,
-                "loss_motion_flow": 1.0,
-                "loss_motion_prob": 100,
+            matcher_config={
+                "cost_class": 1,
+                "cost_dice": 3.0,
+                "mask_weight": 3.0
             },
+            criterion_config={
+                "num_classes": 80,
+                "weight_dict": {"loss_ce": 1, "loss_mask": 3.0,
+                                "loss_dice": 3.0},
+                "eos_coef": 0.1,
+                "losses": ["labels", "masks", "cardinality"],
+            },
+            dec_layers=6, 
     ),),
     train_cfg=dict(
         pts=dict(

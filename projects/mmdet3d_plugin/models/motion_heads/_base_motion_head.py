@@ -475,7 +475,9 @@ class BaseMotionHead(BaseTaskHead):
 
         for key in loss_dict:
             loss_dict[key] *= self.loss_weights.get(key, 1.0)
-
+            if loss_dict[key].isnan().sum() > 0:
+                    print(f"LOSS {key} nan!")
+            
         return loss_dict
 
     def inference(self, predictions):

@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import time
 from mmcv.runner import (HOOKS, DistSamplerSeedHook, EpochBasedRunner,
                          Fp16OptimizerHook, OptimizerHook, build_optimizer,
@@ -31,11 +32,13 @@ import gc
 from copy import deepcopy
 
 torch.backends.cudnn.benchmark = True
+torch.cuda.empty_cache()
+torch.autograd.set_detect_anomaly(False)
 
 
 def update_cfg(
     cfg,
-    n_future=3,
+    n_future=4,
     receptive_field=3,
     resize_lim=(0.38, 0.55),
     final_dim=(256, 704),
@@ -238,7 +241,7 @@ dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=2,
+    samples_per_gpu=1,
     workers_per_gpu=cfg.data.workers_per_gpu,
     dist=False,
     shuffle=False,)]
@@ -247,6 +250,18 @@ data_loaders = [build_dataloader(
 model = build_model(cfg.model, train_cfg=cfg.get(
     "train_cfg"), test_cfg=cfg.get('test_cfg'))
 model.init_weights()
+
+param_size = 0
+for param in model.parameters():
+    param_size += param.nelement() * param.element_size()
+buffer_size = 0
+for buffer in model.buffers():
+    buffer_size += buffer.nelement() * buffer.element_size()
+
+size_all_mb = (param_size + buffer_size) / 1024**2
+print('model size: {:.3f}MB'.format(size_all_mb))
+
+
 
 
 cfg.checkpoint_config.meta = dict(
@@ -258,36 +273,44 @@ cfg.checkpoint_config.meta = dict(
     PALETTE=dataset.PALETTE  # for segmentors
     if hasattr(dataset, 'PALETTE') else None)
 
-relevant_weights = ["transformer", "img_neck",
-                    "temporal_model", "img_backbone"]
 
+load_model = False  
+if load_model:
+    # "temporal_model", "pts_bbox_head.task_decoders.motion", "pts_bbox_head.taskfeat_encoders.motion"]
+    relevant_weights = ["img_backbone",
+                        "transformer", "img_neck", "temporal_model", ]
 
-weights_tiny = torch.load(
-    "/home/niklas/ETM_BEV/BEVerse/weights/clean_weights_tiny.pth")
+    model_dict = model.state_dict()
+    weights_tiny = torch.load(
+        "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")['state_dict']
 
-search_weights = tuple(weights_tiny.keys())
-model_dict = model.state_dict()
+    search_weights = tuple(weights_tiny.keys())
 
+    new_weights = {}
+    for k, v in model_dict.items():
+        if k.startswith(tuple(relevant_weights)):
+            new_weights[k] = weights_tiny[k].clone()
+            print(
+                f"Loaded weights for {k}, and required grad: {v.requires_grad}")
+        else:
+            print(f"ignored {k}")
+    print("LOADED")
+    weights_tiny = OrderedDict(new_weights)
+    model_dict.update(weights_tiny)
+    model.load_state_dict(model_dict)
 
-for k, v in model_dict.items():
-    if k in search_weights:
-        v = weights_tiny[k].clone()
-        v.requires_grad = False
-        print(
-            f"Loaded weights for {k}, and required grad: {v.requires_grad}")
-    else:
-        print(f"ignored {k}")
-model.load_state_dict(model_dict)
+    #print("Num of named gradients", len(list(model.named_parameters())))  # 367
+    for (k, v) in (model.named_parameters()):
+        if k.startswith(tuple(relevant_weights)):
+            print(f"Turned off grads for {k}")
+            v.requires_grad = False
+        else:
+            print(f"Grad enabled for {k}")
 
-for k, v in model.named_parameters():
-    if k.startswith(tuple(relevant_weights)):
-        print(f"turned off grad for {k}")
-        v.requires_grad = False
-    else:
-        print(f"Grad stays for {k}")
+# weights_tiny = torch.load( # 
+#     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
+# model.load_state_dict(weights_tiny)
 
-
-wrap_fp16_model(model)
 
 
 
@@ -329,9 +352,11 @@ cfg.runner = {
 
 fp16_cfg = cfg.get('fp16', None)
 if fp16_cfg is not None:
+    wrap_fp16_model(model)
     optimizer_config = Fp16OptimizerHook(
         **cfg.optimizer_config, **fp16_cfg, distributed=False)
 else:
+    # {'grad_clip': {'max_norm': 35, 'norm_type': 2}} ? 
     optimizer_config = cfg.optimizer_config
 
 # register hooks
