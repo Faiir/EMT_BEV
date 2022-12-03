@@ -279,7 +279,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
         if self.task_enable.get("motion", False):
             motion_loss_dict = self.task_decoders["motion"].loss(
-                predictions["motion"])
+                predictions["motion"],targets)
             loss_dict.update(
                 self.scale_task_losses(
                     task_name="motion", task_loss_dict=motion_loss_dict
@@ -364,7 +364,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
     def forward(self, bev_feats, targets=None):
         if self.shared_feature:
             return self.forward_with_shared_features(bev_feats, targets)
-
+        print(
+            f"Memory allcoated after LLS : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         if bev_feats.isnan().sum() > 0:
             print("bev_feats")
 
@@ -391,7 +392,10 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         b,c,h,w = task_feat.shape
         task_mask = mask = torch.zeros(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
-        features, pos = self.backbone(task_feat, task_mask)
+        
+        features, pos = torch.utils.checkpoint.checkpoint(
+            self.backbone, task_feat, task_mask)
+        #features, pos = self.backbone(task_feat, task_mask)
         for f in features:
             for n in f:
                 if n.isnan().sum() > 0:
@@ -432,9 +436,14 @@ class MultiTaskHead_Motion_DETR(BaseModule):
                 query_embeds, self.current_query = self.object_query_GRU(
                     query_embeds, self.current_query)
 
-        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
-            srcs, masks, pos, query_embeds)
+        print(f"Memory allcoated before transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         
+        # hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
+        #     srcs, masks, pos, query_embeds)
+        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = torch.utils.checkpoint.checkpoint(
+            self.transformer, srcs, masks, pos, query_embeds)
+        print(
+            f"Memory allcoated after transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         if hs.isnan().sum() > 0 or hs.sum() == 0.0:
             print("hs")
         #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
@@ -448,7 +457,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             motion_pred = self.task_decoders["motion"](
                 hs, init_reference, seg_memory, seg_mask, features)
             predictions["motion"] = motion_pred
-        
+            print(
+                f"Memory allcoated after motion head: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         
         
         

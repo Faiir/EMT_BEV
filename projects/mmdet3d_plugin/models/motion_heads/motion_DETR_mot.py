@@ -44,7 +44,8 @@ class Motion_DETR_MOT(BaseModule):
                 matcher_config={
                      "cost_class": 1,
                      "cost_dice": 3.0,
-                     "mask_weight":3.0
+                     "mask_weight":3.0,
+                     "n_future": 5
                  },
                 criterion_config={
                     "num_classes": 80,
@@ -60,11 +61,12 @@ class Motion_DETR_MOT(BaseModule):
                 init_cfg=dict(type="Kaiming", layer="Conv2d"),
                  **kwargs):
         super(Motion_DETR_MOT, self).__init__(**kwargs)
+        self.loss_weights = {} 
         self.logger = logging.getLogger("timelogger")
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.receptive_field = receptive_field
-        self.n_future = n_future
+        self.n_future = n_future +1
         
 
         self.task_heads = nn.ModuleDict()
@@ -87,17 +89,19 @@ class Motion_DETR_MOT(BaseModule):
                 
             weight_dict.update(aux_weight_dict)
         self.num_classes = criterion_config["num_classes"]
-        criterion = SetCriterion(
+        self.criterion = SetCriterion(
             self.num_classes, matcher=matcher, weight_dict=criterion_config[
                 "weight_dict"], eos_coef=criterion_config["eos_coef"], losses=criterion_config["losses"],
-            n_future=n_future
+            n_future=self.n_future 
         )
-        self.class_mlps = []
-        for _ in range(self.n_future):
-            self.class_mlps.append(MLP(hidden_dim, hidden_dim,
-                              output_dim=self.num_classes + 1, num_layers=2))
+        # self.class_mlps = []
+        # for _ in range(self.n_future):
+        #     self.class_mlps.append(MLP(hidden_dim, hidden_dim,
+        #                       output_dim=self.num_classes + 1, num_layers=2))
             
-        self.class_mlps = nn.ModuleList(self.class_mlps)
+        # self.class_mlps = nn.ModuleList(self.class_mlps)
+        self.class_mlp = MLP(hidden_dim, hidden_dim,
+                             output_dim=self.num_classes + 1, num_layers=2)
         self.fpn_dims_input = [64, 128, 256, 512]
         fpn_dims = [256, 256, 256, 256]
         
@@ -107,7 +111,7 @@ class Motion_DETR_MOT(BaseModule):
         
         self.project_convs = nn.ModuleList(self.project_convs)
         
-        print(f"{self.n_future = }")
+        
         self.mask_head = MaskHeadSmallConvIFC(
             hidden_dim, fpn_dims, n_future=self.n_future)
 
@@ -139,20 +143,25 @@ class Motion_DETR_MOT(BaseModule):
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
-        outputs_masks = self.mask_head(
-           seg_memory, input_projections, hs)
+        outputs_masks = torch.utils.checkpoint.checkpoint(
+            self.mask_head, seg_memory, input_projections, hs)
+        # outputs_masks = self.mask_head(
+        #     seg_memory, input_projections, hs)
 
-        outputs_class = []
-        for class_mlp in self.class_mlps:
-            outputs_class.append(class_mlp(hs))
+        # outputs_class = []  # torch.Size([6, 1, 300, 256])
+        # for class_mlp in self.class_mlps:
+        #     outputs_class.append(class_mlp(hs))
 
-        outputs_class = torch.stack(outputs_class)
+        # # torch.Size([6, 5, 1, 300, 101])
+        # outputs_class = torch.stack(outputs_class, dim=1)
+        outputs_class = torch.utils.checkpoint.checkpoint(self.class_mlp, hs)
+        #outputs_class = self.class_mlp(hs)
 
-        out = {'pred_logits': outputs_class[-1]}
+        out = {'pred_logits': outputs_class[-1]} # TxBxQxC
         out.update({'pred_masks': outputs_masks[-1]})
 
         if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_masks)
+            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_masks)#TxBxQxC
 
         return out
 
@@ -165,8 +174,8 @@ class Motion_DETR_MOT(BaseModule):
 
     def prepare_future_labels(self, batch, mask_stride=2, match_stride=2):
         #segmentation_labels = batch["motion_segmentation"][0]
-        gt_instance = batch["motion_instance"][0]
-        future_egomotion = batch["future_egomotions"][0]
+        gt_instance = batch["motion_instance"]
+        future_egomotion = batch["future_egomotion"]
         batch_size = len(gt_instance)
         labels = {}
 
@@ -193,15 +202,21 @@ class Motion_DETR_MOT(BaseModule):
         target_list = []
         for b in range(batch_size):
             gt_list = []
-            ids = len(gt_instance[b].unique())
-            for _id in range(ids):
+            ids = gt_instance[b].unique()
+            
+            label_t_list = []
+            for t in gt_instance[b]:
+                label_t_list.append(len(t.unique()))
+
+            
+            for _id in range(len(ids)):
                 test_bool = torch.where(gt_instance[b] == _id, 1., 0.)
                 gt_list.append(test_bool)
 
             segmentation_labels = torch.stack(gt_list, dim=0)
 
             #segmentation_labels = torch.stack(gt_batch_instances_list,dim=0)
-            o_h, o_w = segmentation_labels[-2:]
+            o_h, o_w = (200,200)# segmentation_labels[-2:]
             l_h, l_w = math.ceil(o_h/mask_stride), math.ceil(o_w/mask_stride)
             m_h, m_w = math.ceil(o_h/match_stride), math.ceil(o_w/match_stride)
 
@@ -211,7 +226,9 @@ class Motion_DETR_MOT(BaseModule):
                 m_h, m_w), mode="bilinear", align_corners=False)
 
             # labels only continous for clip - this is much more of an tracking id as every class is a vehicle anyways # TODO make work with other types of superclasses other then vehicle
-            ids = gt_instance[b].unique()
+            #ids = gt_instance[b].unique()
+            print(
+                f"Labels over {len(gt_instance[b])} for Batch {b+1}, no.labels {label_t_list} no.masks {gt_masks_for_match.shape}")
             target_list.append({"labels": ids, "masks": gt_masks_for_loss,
                                "match_masks": gt_masks_for_match, "gt_motion_instance": gt_instance[b]})
         return target_list, future_egomotion[:, (self.receptive_field - 1):]
@@ -225,8 +242,8 @@ class Motion_DETR_MOT(BaseModule):
         target_list,_ = self.prepare_future_labels(targets)
         loss_dict = self.criterion(predictions, target_list)
 
-        for key in loss_dict:
-            loss_dict[key] *= self.loss_weights.get(key, 1.0)
+        # for key in loss_dict:
+        #     loss_dict[key] *= self.loss_weights.get(key, 1.0)
 
         return loss_dict
 
@@ -424,7 +441,7 @@ class SetCriterion(nn.Module):
         assert "pred_masks" in outputs
 
         idx = self._get_src_permutation_idx(indices)
-        src_masks = outputs["pred_masks"][idx]
+        src_masks = outputs["pred_masks"][idx]# matched maskes from Queryset
 
         target_masks = torch.cat(
             [t['masks'][i] for t, (_, i) in zip(targets, indices)]).to(src_masks)

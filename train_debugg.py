@@ -223,7 +223,7 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
+cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 
 
 # cfg = update_cfg(
@@ -241,7 +241,7 @@ dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=1,
+    samples_per_gpu=2,
     workers_per_gpu=cfg.data.workers_per_gpu,
     dist=False,
     shuffle=False,)]
@@ -274,7 +274,7 @@ cfg.checkpoint_config.meta = dict(
     if hasattr(dataset, 'PALETTE') else None)
 
 
-load_model = False  
+load_model = True  
 if load_model:
     # "temporal_model", "pts_bbox_head.task_decoders.motion", "pts_bbox_head.taskfeat_encoders.motion"]
     relevant_weights = ["img_backbone",
@@ -350,14 +350,15 @@ cfg.runner = {
     'max_epochs': 1
 }
 
-fp16_cfg = cfg.get('fp16', None)
-if fp16_cfg is not None:
-    wrap_fp16_model(model)
-    optimizer_config = Fp16OptimizerHook(
-        **cfg.optimizer_config, **fp16_cfg, distributed=False)
-else:
+# fp16_cfg = cfg.get('fp16', None)
+# if fp16_cfg is not None:
+#     print("")
+#     wrap_fp16_model(model)
+#     optimizer_config = Fp16OptimizerHook(
+#         **cfg.optimizer_config, **fp16_cfg, distributed=False)
+#else:
     # {'grad_clip': {'max_norm': 35, 'norm_type': 2}} ? 
-    optimizer_config = cfg.optimizer_config
+optimizer_config = cfg.optimizer_config
 
 # register hooks
 

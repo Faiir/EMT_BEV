@@ -35,6 +35,7 @@ class HungarianMatcherIFC(torch.nn.Module):
         cost_class: float = 1,
         cost_dice: float = 1,
         num_classes: int = 80,
+        n_future: int = 5
     ):
         """Creates the matcher
 
@@ -51,7 +52,8 @@ class HungarianMatcherIFC(torch.nn.Module):
         self.num_classes = num_classes
         self.num_cum_classes = [0] + \
             np.cumsum(np.array(num_classes) + 1).tolist()
-        self.n_future = 4
+        self.n_future = n_future
+        
     @torch.no_grad()
     def forward(self, outputs, targets):
         # We flatten to compute the cost matrices in a batch
@@ -68,13 +70,14 @@ class HungarianMatcherIFC(torch.nn.Module):
 
         indices = []
         for b_i in range(B):
-            b_tgt_ids = targets[b_i]["labels"]
-            b_out_prob = out_prob[b_i]
+            # tensor([0, 1, 2], device='cuda:0')
+            b_tgt_ids = targets[b_i]["labels"] #19
+            b_out_prob = out_prob[b_i]  # 
 
-            cost_class = b_out_prob[:, b_tgt_ids]
+            cost_class = b_out_prob[:, b_tgt_ids]  # torch.Size([1, 3, 101]) 
 
-            b_tgt_mask = targets[b_i]["match_masks"]
-            b_out_mask = out_mask[b_i]
+            b_tgt_mask = targets[b_i]["match_masks"] # #GxTxHxW
+            b_out_mask = out_mask[b_i]   #QxTxHxW
 
             # Compute the dice coefficient cost between masks
             # The 1 is a constant that doesn't change the matching as cost_class, thus omitted.
@@ -84,8 +87,14 @@ class HungarianMatcherIFC(torch.nn.Module):
             ).to(cost_class)
 
             # Final cost matrix
+            #! CHECK INDEX OF BATCH DIMENSION MIGHT NEED TO TRANSPOSE??
             C = self.cost_dice * cost_dice + self.cost_class * cost_class
-
-            indices.append(linear_sum_assignment(C.cpu(), maximize=True))
-
+            
+            print(f"Predicted {C.shape} masks for batch {b_i+1}")
+            
+            assignment = linear_sum_assignment(C.cpu(), maximize=True) 
+            indices.append(assignment)
+            print(
+                f"Predicted {C.cpu().shape} masks for batch {b_i+1}, current indices {assignment}")
+            
         return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]

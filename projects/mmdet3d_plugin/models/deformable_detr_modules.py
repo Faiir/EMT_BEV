@@ -2358,12 +2358,13 @@ class MaskHeadSmallConvIFC(nn.Module):
 
         x = x.unsqueeze(1).repeat(1, T, 1, 1, 1)
         B, BT, C, H, W = x.shape
+        BT = B*T
         L, B, N, C = hs.shape
         
-        x = self.depth_sep_conv2d(x.view(B*BT, C, H, W)).view(B, BT, C, H, W)
+        x = self.depth_sep_conv2d(x.view(B*T, C, H, W)).view(B, T, C, H, W)
         
         w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
-        w = w.unsqueeze(1).repeat(1, 4, 1, 1, 1)
+        w = w.unsqueeze(1).repeat(1, T, 1, 1, 1)
 
         mask_logits = F.conv2d(x.view(1, BT*C, H, W),
                                w.reshape(B*T*L*N, C, 1, 1), groups=BT)

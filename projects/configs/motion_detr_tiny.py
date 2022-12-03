@@ -45,7 +45,8 @@ model = dict(
                 "type": "HungarianMatcherIFC",
                 "cost_class": 1,
                 "cost_dice": 3.0,
-                "num_classes": 100
+                "num_classes": 100,
+                "n_future": future_frames +1 
             },
             criterion_config={
                 "num_classes": 100,
