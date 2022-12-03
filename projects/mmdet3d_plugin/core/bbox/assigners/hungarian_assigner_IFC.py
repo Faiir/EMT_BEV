@@ -74,6 +74,7 @@ class HungarianMatcherIFC(torch.nn.Module):
             b_tgt_ids = targets[b_i]["labels"] #19
             b_out_prob = out_prob[b_i]  # 
 
+            
             cost_class = b_out_prob[:, b_tgt_ids]  # torch.Size([1, 3, 101]) 
 
             b_tgt_mask = targets[b_i]["match_masks"] # #GxTxHxW
@@ -90,11 +91,11 @@ class HungarianMatcherIFC(torch.nn.Module):
             #! CHECK INDEX OF BATCH DIMENSION MIGHT NEED TO TRANSPOSE??
             C = self.cost_dice * cost_dice + self.cost_class * cost_class
             
-            print(f"Predicted {C.shape} masks for batch {b_i+1}")
-            
-            assignment = linear_sum_assignment(C.cpu(), maximize=True) 
+            #print(f"Predicted {C.shape} masks for batch {b_i+1}")
+            C = C.cpu() 
+            assignment = linear_sum_assignment(C, maximize=True) 
             indices.append(assignment)
-            print(
-                f"Predicted {C.cpu().shape} masks for batch {b_i+1}, current indices {assignment}")
+            # print(
+            #     f"Predicted {C.cpu().shape} masks for batch {b_i+1}, current indices {assignment}")
             
         return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]

@@ -119,7 +119,7 @@ class Motion_DETR_MOT(BaseModule):
         self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
         self.aux_loss = aux_loss
-
+        self.ignore_index = ignore_index
         #self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
 
@@ -202,15 +202,20 @@ class Motion_DETR_MOT(BaseModule):
         target_list = []
         for b in range(batch_size):
             gt_list = []
+            #gt_instance[b] = gt_instance[b][gt_instance[b]!=self.ignore_index]
             ids = gt_instance[b].unique()
+            
+            ids = ids[ids!=self.ignore_index]
             
             label_t_list = []
             for t in gt_instance[b]:
-                label_t_list.append(len(t.unique()))
+                t_labels =t.unique()
+                t_labels = t_labels[t_labels != self.ignore_index]
+                label_t_list.append(len(t_labels))
 
-            
-            for _id in range(len(ids)):
-                test_bool = torch.where(gt_instance[b] == _id, 1., 0.)
+            for _id in ids:
+                test_bool = torch.where(
+                    gt_instance[b] == _id, 1., 0.)
                 gt_list.append(test_bool)
 
             segmentation_labels = torch.stack(gt_list, dim=0)
@@ -244,7 +249,8 @@ class Motion_DETR_MOT(BaseModule):
 
         # for key in loss_dict:
         #     loss_dict[key] *= self.loss_weights.get(key, 1.0)
-
+        for k in loss_dict:
+            print(f"Loss for {k}: {loss_dict[k]}")
         return loss_dict
 
     def inference(self, predictions): #TODO
