@@ -1,0 +1,60 @@
+dim = 256
+gn=8
+num_queries = 500
+hidden_dim = dim 
+T = 5 
+hs = torch.rand([6, 1, num_queries, hidden_dim])
+fpn3 = torch.rand((1, 512, 50, 50))
+fpn4 = torch.rand((1, 512, 100, 100))
+
+
+lay4 = torch.nn.Conv2d(dim*2, dim*T, 3, padding=1)
+gn4 = torch.nn.GroupNorm(gn, dim*T)
+lay5 = torch.nn.Conv2d(dim*T, dim*T, 3, padding=1)
+gn5 = torch.nn.GroupNorm(gn, dim*T)
+adapter3 = torch.nn.Conv2d(256*2, dim*2, 1)
+adapter4 = torch.nn.Conv2d(512, dim*T, 1)
+convert_to_weight = MLP(dim, dim*2, dim*T, 2)
+depth_sep_conv2d = depthwise_separable_conv(
+    dim, dim, kernel_size=5, padding=2, activation1=F.relu, activation2=F.relu)
+
+x = torch.rand((1, 512, 25, 25))
+print(f"input {fpn3.shape = }, {x.shape}")
+cur_fpn = adapter3(fpn3)
+x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+#print(f"Interpolutaion with expan: {x.shape = }")
+print(f"interpolation, {x.shape}")
+x = lay4(x)
+x = gn4(x)
+x = F.relu(x)
+
+print(f"after adapter1 {x.shape }")
+cur_fpn = adapter4(fpn4)
+print(f" adapter2 {cur_fpn.shape } {x.shape}")
+x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+x = lay5(x)
+x = gn5(x)
+x = F.relu(x)
+print(f"after adapter2 {x.shape }")
+T = 5
+H, W = x.shape[-2:]
+x = x.unsqueeze(1).reshape(1, T, -1, H, W)
+print(f"after reshape {x.shape }")
+B, BT, C, H, W = x.shape
+L, B, N, C = hs.shape
+
+x = depth_sep_conv2d(x.view(B*BT, C, H, W)).view(B, BT, C, H, W)
+
+print(f"after reshape {x.shape }")
+print(f"HS input {hs.shape }")
+w = convert_to_weight(hs).permute(1, 0, 2, 3)
+print(f"after weight {w.shape }")
+#torch.Size([1, 6, 100, 256])
+#torch.Size([1, 5, 6, 100, 256])
+w = w.unsqueeze(1).reshape(1, T, L, N, -1)
+print(f"after reshape {w.shape }")
+mask_logits = F.conv2d(x.view(1, BT*C, H, W),
+                       w.reshape(B*T*L*N, C, 1, 1), groups=BT)
+print(f"mask logits {w.shape }")
+mask_logits = mask_logits.view(
+    B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
