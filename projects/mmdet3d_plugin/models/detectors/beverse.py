@@ -58,16 +58,22 @@ class BEVerse(MVXTwoStageDetector):
 
         B, S, N, C, imH, imW = imgs.shape
         imgs = imgs.view(B * S * N, C, imH, imW)
-        x = self.img_backbone(imgs)
-
+        #x = self.img_backbone(imgs)
+        x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
         for f in x:
             if torch.any(torch.isinf(f)):
                 print(f"Found inf / -inf in img_backbone")
             if f.isnan().sum() > 0 or f.sum() == 0.0:
                 print("img_backbone nan")
         
+
+        print(
+        f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+
         if self.with_img_neck:
             x = self.img_neck(x)
+        print(
+            f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         if isinstance(x, tuple):
             x_list = []
@@ -86,8 +92,14 @@ class BEVerse(MVXTwoStageDetector):
         t_BEV = time.time()
 
         # temporal processing
-        x = self.temporal_model(x, future_egomotion=future_egomotion,
-                                aug_transform=aug_transform, img_is_valid=img_is_valid)
+        # x = self.temporal_model(x, future_egomotion=future_egomotion,
+        #                         aug_transform=aug_transform, img_is_valid=img_is_valid)
+        x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
+                                              aug_transform, img_is_valid)
+
+
+        print(
+            f"Memory allcoated after temporal_model : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         torch.cuda.synchronize()
         t_temporal = time.time()
