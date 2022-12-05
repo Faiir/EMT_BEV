@@ -13,7 +13,7 @@ from ...datasets.utils.warper import FeatureWarper
 from ...visualize import Visualizer
 
 
-from ..deformable_detr_modules import MLP, MaskHeadSmallConvIFC
+from ..deformable_detr_modules import MLP, MaskHeadSmallConvIFC, MaskHeadSmallConvIFC_V2, MaskHeadSmallConvIFC_V3
 from mmdet.core import build_assigner
 
 
@@ -32,15 +32,16 @@ class Motion_DETR_MOT(BaseModule):
                 future_discount = 0.95,
                 grid_conf=None,
                 #class_weights=[1.0, 2.0],
-                hidden_dim=512, 
+                hidden_dim=512,
                 nheads=8,
                 use_topk=True,
-                 aux_loss=True, 
+                 aux_loss=True,
                 ignore_index=255,
                 num_queries=300,
-                #posterior_with_label=False, TODO 
-                sample_ignore_mode="all_valid", # TODO 
+                #posterior_with_label=False, TODO
+                sample_ignore_mode="all_valid", # TODO
                 loss_weights=None,
+                upsampler_type="V3",
                 matcher_config={
                      "cost_class": 1,
                      "cost_dice": 3.0,
@@ -61,60 +62,60 @@ class Motion_DETR_MOT(BaseModule):
                 init_cfg=dict(type="Kaiming", layer="Conv2d"),
                  **kwargs):
         super(Motion_DETR_MOT, self).__init__(**kwargs)
-        self.loss_weights = {} 
+        self.loss_weights = {}
         self.logger = logging.getLogger("timelogger")
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.receptive_field = receptive_field
         self.n_future = n_future +1
-        
+
 
         self.task_heads = nn.ModuleDict()
-        
-        matcher = build_assigner(matcher_config)
-        
 
-        # matcher = HungarianMatcherIFC(
-        #     cost_class=1,
-        #     cost_dice=dice_weight,
-        #     num_classes=criterion_config["num_classes"],
-        
-        # )
+        matcher = build_assigner(matcher_config)
+
+
         weight_dict = criterion_config["weight_dict"]
         if dec_layers > 1:
             aux_weight_dict = {}
             for i in range(dec_layers - 1):
                 aux_weight_dict.update(
                     {k + f"_{i}": v for k, v in weight_dict.items()})
-                
+
             weight_dict.update(aux_weight_dict)
         self.num_classes = criterion_config["num_classes"]
         self.criterion = SetCriterion(
             self.num_classes, matcher=matcher, weight_dict=criterion_config[
                 "weight_dict"], eos_coef=criterion_config["eos_coef"], losses=criterion_config["losses"],
-            n_future=self.n_future 
+            n_future=self.n_future
         )
         # self.class_mlps = []
         # for _ in range(self.n_future):
         #     self.class_mlps.append(MLP(hidden_dim, hidden_dim,
         #                       output_dim=self.num_classes + 1, num_layers=2))
-            
+
         # self.class_mlps = nn.ModuleList(self.class_mlps)
         self.class_mlp = MLP(hidden_dim, hidden_dim,
                              output_dim=self.num_classes + 1, num_layers=2)
         self.fpn_dims_input = [64, 128, 256, 512]
-        fpn_dims = [256, 256, 256, 256]
-        
+
+        if upsampler_type == "V1":
+            fpn_dims = [256, 256, 256, 256]
+            self.mask_head = MaskHeadSmallConvIFC(
+            hidden_dim, fpn_dims, n_future=self.n_future)
+        elif upsampler_type == "V2":
+            fpn_dims = [256, 256, 512, 512]
+            self.mask_head = MaskHeadSmallConvIFC_V2(
+            hidden_dim, fpn_dims, n_future=self.n_future)
+        elif upsampler_type == "V3":
+            fpn_dims = [256, 256, 256, 512]
+            self.mask_head = MaskHeadSmallConvIFC_V3(
+                hidden_dim, fpn_dims, n_future=self.n_future)
         self.project_convs = []
         for _in,out in zip(self.fpn_dims_input,fpn_dims):
             self.project_convs.append(nn.Conv2d(_in, out, 3, padding=1))
-        
-        self.project_convs = nn.ModuleList(self.project_convs)
-        
-        
-        self.mask_head = MaskHeadSmallConvIFC(
-            hidden_dim, fpn_dims, n_future=self.n_future)
 
+        self.project_convs = nn.ModuleList(self.project_convs)
 
         self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
@@ -138,7 +139,7 @@ class Motion_DETR_MOT(BaseModule):
         3. decode present & future states with the decoder heads
         """
 
-        
+
         input_projections = []
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
@@ -204,9 +205,9 @@ class Motion_DETR_MOT(BaseModule):
             gt_list = []
             #gt_instance[b] = gt_instance[b][gt_instance[b]!=self.ignore_index]
             ids = gt_instance[b].unique()
-            
+
             ids = ids[ids!=self.ignore_index]
-            
+
             label_t_list = []
             for t in gt_instance[b]:
                 t_labels =t.unique()
@@ -237,7 +238,7 @@ class Motion_DETR_MOT(BaseModule):
             target_list.append({"labels": ids, "masks": gt_masks_for_loss,
                                "match_masks": gt_masks_for_match, "gt_motion_instance": gt_instance[b]})
         return target_list, future_egomotion[:, (self.receptive_field - 1):]
-        
+
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
@@ -289,8 +290,8 @@ class Motion_DETR_MOT(BaseModule):
         # )
 
         #return seg_prediction, pred_consistent_instance_seg
-    
-    
+
+
 @torch.no_grad()
 def accuracy(output, target, topk=(1,)):
     """Computes the precision@k for the specified values of k"""
