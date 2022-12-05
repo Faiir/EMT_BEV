@@ -283,7 +283,7 @@ if load_model:
 
     model_dict = model.state_dict()
     weights_tiny = torch.load(
-        "/home/kraussn/ETM_BEV/BEVerse/weights/beverse_tiny.pth")['state_dict']
+        "/home/kraussn/ETM_BEV/weights/beverse_tiny.pth")['state_dict']
 
     search_weights = tuple(weights_tiny.keys())
 
