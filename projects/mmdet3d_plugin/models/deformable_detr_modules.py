@@ -2598,8 +2598,8 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
         w = w.unsqueeze(1).reshape(B, T, L, N, -1)
 
-        # Unsure about the fusion across the batch dimension in  W maybe x needs to be x.reshape(1,B*BT*C, H, W),
-        mask_logits = F.conv2d(x.reshape(B, BT*C, H, W),
+        # Unsure about the fusion across the batch dimension - meh IFC segmentation module afterwards
+        mask_logits = F.conv2d(x.reshape(1, B *BT*C, H, W),
                             w.reshape(B*T*L*N, C, 1, 1), groups=BT*B)
 
         mask_logits = mask_logits.view(

@@ -116,3 +116,58 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         mask_logits = mask_logits.view(
             B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
         return mask_logits
+
+########## IFC ########################################
+class MaskHead(nn.Module):
+    def __init__(self, hidden_dim, fpn_dims, num_frames):
+        super().__init__()
+        self.num_frames = num_frames
+
+        self.lay1 = torch.nn.Conv2d(hidden_dim, hidden_dim, 3, padding=1)
+        self.gn1 = torch.nn.GroupNorm(32, hidden_dim)
+        self.lay2 = torch.nn.Conv2d(hidden_dim, hidden_dim, 3, padding=1)
+        self.gn2 = torch.nn.GroupNorm(32, hidden_dim)
+        self.lay3 = torch.nn.Conv2d(hidden_dim, hidden_dim, 3, padding=1)
+        self.gn3 = torch.nn.GroupNorm(32, hidden_dim)
+        self.out_lay = DepthwiseSeparableConv2d(
+            hidden_dim, hidden_dim, 5, padding=2, activation1=F.relu, activation2=F.relu)
+
+        self.adapter1 = torch.nn.Conv2d(fpn_dims[0], hidden_dim, 1)
+        self.adapter2 = torch.nn.Conv2d(fpn_dims[1], hidden_dim, 1)
+
+        self.convert_to_weight = MLP(hidden_dim, hidden_dim, hidden_dim, 3)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_uniform_(m.weight, a=1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x: Tensor, fpns: List[Tensor], tq: Tensor):
+        x = self.lay1(x)
+        x = self.gn1(x)
+
+        cur_fpn = self.adapter1(fpns[0])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        x = self.lay2(x)
+        x = self.gn2(x)
+
+        cur_fpn = self.adapter2(fpns[1])
+        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+        x = self.lay3(x)
+        x = self.gn3(x)
+        x = F.relu(x)
+
+        BT, C, H, W = x.shape
+        L, B, N, C = tq.shape
+        T = BT // B
+
+        x = self.out_lay(x)
+        w = self.convert_to_weight(tq).permute(1, 0, 2, 3)
+        w = w.unsqueeze(1).repeat(1, T, 1, 1, 1)
+
+        mask_logits = F.conv2d(x.view(1, BT*C, H, W),
+                               w.reshape(B*T*L*N, C, 1, 1), groups=BT)
+        mask_logits = mask_logits.view(
+            B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
+
+        return mask_logits
