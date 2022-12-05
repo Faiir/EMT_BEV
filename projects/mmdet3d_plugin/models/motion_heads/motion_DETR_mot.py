@@ -529,7 +529,7 @@ class SetCriterion(nn.Module):
                         kwargs = {'log': False}
                     l_dict = self.get_loss(
                         loss, aux_outputs, targets, indices, num_masks, **kwargs)
-                    l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
+                    l_dict = {k + f'_{i+1}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
         return losses
