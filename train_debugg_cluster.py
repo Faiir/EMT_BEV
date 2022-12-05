@@ -140,7 +140,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs"
+    cfg_path = r"/home/kraussn/ETM_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -223,7 +223,8 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
+cfg_filename = "beverse_tiny_org"
+cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 
 
 # cfg = update_cfg(
@@ -236,13 +237,13 @@ cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 #     #t_input_shape=(90, 155),
 # )
 
-cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+cfg.data.train.dataset["data_root"] = '/home/kraussn/ETM_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=2,
-    workers_per_gpu=2,
+    samples_per_gpu=1,
+    workers_per_gpu=1,
     dist=False,
     shuffle=False,)]
 
@@ -278,11 +279,11 @@ load_model = True
 if load_model:
     # "temporal_model", "pts_bbox_head.task_decoders.motion", "pts_bbox_head.taskfeat_encoders.motion"]
     relevant_weights = ["img_backbone",
-                        "transformer", "img_neck", "temporal_model", ]
+                        "transformer", "img_neck", ]
 
     model_dict = model.state_dict()
     weights_tiny = torch.load(
-        "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")['state_dict']
+        "/home/kraussn/ETM_BEV/BEVerse/weights/beverse_tiny.pth")['state_dict']
 
     search_weights = tuple(weights_tiny.keys())
 
@@ -318,12 +319,12 @@ model.cuda()
 
 model = MMDataParallel(model, device_ids=[0])
 
-mmcv.mkdir_or_exist(osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/local_train_debug"))
+mmcv.mkdir_or_exist(osp.abspath(r"/home/krausn/ETM_BEV/logs/local_train_debug"))
 
 # init the logger before other steps
 timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 log_file = osp.join(
-    r"/home/niklas/ETM_BEV/BEVerse/logs/local_train_debug", f'{timestamp}.log')
+    r"/home/krausn/ETM_BEV/logs/local_train_debug", f'{timestamp}.log')
 
 
 logger_name = 'mmdet'
@@ -341,7 +342,7 @@ logger.info('Environment info:\n' + dash_line + env_info + '\n' +
             dash_line)
 meta['env_info'] = env_info
 meta['seed'] = 1337
-meta['exp_name'] = "testname"
+meta['exp_name'] = cfg_filename
 
 optimizer = build_optimizer(model, cfg.optimizer)
 

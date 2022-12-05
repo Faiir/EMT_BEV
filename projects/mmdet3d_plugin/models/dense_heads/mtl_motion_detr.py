@@ -188,9 +188,6 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         #     self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
         
         self.temporal_queries_activated = temporal_queries_activated 
-        if self.temporal_queries_activated:
-            self.object_query_GRU = nn.GRU(hidden_dim, hidden_dim, 2)
-            self.current_query = None 
             
         self.flow_warp = flow_warp
         self.warper = FeatureWarper(grid_conf=grid_conf)
@@ -430,11 +427,9 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             query_embeds = self.query_embed.weight
             if self.temporal_queries_activated: #TODO FIX this 
                 if self.current_query is None:
-                    self.current_query = torch.nn.Parameter(torch.randn(
-                        b, self.num_queries, self.hidden_dim), requires_grad=True)
+                    self.temporal_query_projection()
 
-                query_embeds, self.current_query = self.object_query_GRU(
-                    query_embeds, self.current_query)
+
 
         print(f"Memory allcoated before transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         

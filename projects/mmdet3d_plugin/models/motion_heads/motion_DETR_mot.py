@@ -108,7 +108,7 @@ class Motion_DETR_MOT(BaseModule):
             self.mask_head = MaskHeadSmallConvIFC_V2(
             hidden_dim, fpn_dims, n_future=self.n_future)
         elif upsampler_type == "V3":
-            fpn_dims = [256, 256, 256, 512]
+            fpn_dims = [512, 256, 256, 256]
             self.mask_head = MaskHeadSmallConvIFC_V3(
                 hidden_dim, fpn_dims, n_future=self.n_future)
         self.project_convs = []
@@ -144,10 +144,10 @@ class Motion_DETR_MOT(BaseModule):
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
-        outputs_masks = torch.utils.checkpoint.checkpoint(
-            self.mask_head, seg_memory, input_projections, hs)
-        # outputs_masks = self.mask_head(
-        #     seg_memory, input_projections, hs)
+        # outputs_masks = torch.utils.checkpoint.checkpoint(
+        #     self.mask_head, seg_memory, input_projections, hs)
+        outputs_masks = self.mask_head(
+            seg_memory, input_projections, hs)
 
         # outputs_class = []  # torch.Size([6, 1, 300, 256])
         # for class_mlp in self.class_mlps:
