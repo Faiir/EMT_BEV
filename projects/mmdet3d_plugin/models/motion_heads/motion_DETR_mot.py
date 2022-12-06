@@ -100,18 +100,21 @@ class Motion_DETR_MOT(BaseModule):
         self.fpn_dims_input = [64, 128, 256, 512]
 
         if upsampler_type == "V1":
-            fpn_dims = [256, 256, 256, 256]
+            fpn_dims = [hidden_dim, hidden_dim, hidden_dim, hidden_dim]
             self.mask_head = MaskHeadSmallConvIFC(
             hidden_dim, fpn_dims, n_future=self.n_future)
         elif upsampler_type == "V2":
-            fpn_dims = [256, 256, 512, 512]
+            fpn_dims[hidden_dim*2, hidden_dim*2, hidden_dim, hidden_dim]
             self.mask_head = MaskHeadSmallConvIFC_V2(
             hidden_dim, fpn_dims, n_future=self.n_future)
         elif upsampler_type == "V3":
-            fpn_dims = [512, 256, 256, 256]
+            #fpn_dims = [256, 256, 256, 512]
+            fpn_dims = [hidden_dim, hidden_dim, hidden_dim, hidden_dim*2]
             self.mask_head = MaskHeadSmallConvIFC_V3(
                 hidden_dim, fpn_dims, n_future=self.n_future)
         self.project_convs = []
+        
+        fpn_dims.reverse()
         for _in,out in zip(self.fpn_dims_input,fpn_dims):
             self.project_convs.append(nn.Conv2d(_in, out, 3, padding=1))
 

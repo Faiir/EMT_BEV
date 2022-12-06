@@ -2496,7 +2496,7 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         self.n_future = n_future
         gn = 8
         T = self.n_future
-        fpn_dims = [256,256,256,512]
+        fpn_dims = fpn_dims
         
         self.lay1 = torch.nn.Conv2d(dim, dim, 3, padding=1)
         self.gn1 = torch.nn.GroupNorm(gn, dim)
@@ -2506,12 +2506,12 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         self.gn3 = torch.nn.GroupNorm(gn, dim)
         self.lay4 = torch.nn.Conv2d(dim, dim*T, 3, padding=1)
         self.gn4 = torch.nn.GroupNorm(gn, dim*T)
-        self.lay5 = torch.nn.Conv2d(dim*2, dim*T, 3, padding=1)
-        self.gn5 = torch.nn.GroupNorm(gn, dim*T)
+        # self.lay5 = torch.nn.Conv2d(dim*2, dim*T, 3, padding=1)
+        # self.gn5 = torch.nn.GroupNorm(gn, dim*T)
 
 
-        self.depth_sep_conv2d = depthwise_separable_conv(
-            dim, dim, kernel_size=5, padding=2, activation1=F.relu, activation2=F.relu)
+        # self.depth_sep_conv2d = depthwise_separable_conv(
+        #     dim, dim, kernel_size=5, padding=2, activation1=F.relu, activation2=F.relu)
 
 
         self.a = nn.Sequential(
@@ -2560,7 +2560,6 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         x = F.relu(x)
         
         cur_fpn = self.adapter1(fpns[-1])
-        
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         x = self.lay2(x)
         x = self.gn2(x)
@@ -2571,13 +2570,13 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         x = self.lay3(x)
         x = self.gn3(x)
         x = F.relu(x)
-        
+
         cur_fpn = self.adapter3(fpns[-3])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
         x = self.lay4(x)
         x = self.gn4(x)
         x = F.relu(x)
-        
+
         cur_fpn = self.adapter4(fpns[-4])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
 
@@ -2591,7 +2590,7 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         x = self.b2(x)
         x = F.relu(x)
         x = self.a(x).permute(0, 2, 1, 3, 4)
-    
+
         B, BT, C, H, W = x.shape
         L, B, N, C = hs.shape
 

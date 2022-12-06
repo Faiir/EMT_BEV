@@ -1,6 +1,7 @@
 _base_ = [
     "../../configs/_base_/datasets/nus-3d.py",
-    "../../configs/_base_/schedules/cyclic_20e.py",
+    # "../../configs/_base_/schedules/cyclic_20e.py",
+    "../../configs/_base_/schedules/cosine.py",
     "../../configs/_base_/default_runtime.py",
 ]
 
@@ -83,7 +84,7 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
-hidden_dim = 256
+hidden_dim = 128
 num_queries = 300
 
 
@@ -141,10 +142,10 @@ model = dict(
         out_channels_map=256,
         hidden_dim=hidden_dim,
         nheads=8,
-        enc_layers=6,
-        dec_layers=6,
-        dec_n_points=8,
-        enc_n_points=8,
+        enc_layers=3,
+        dec_layers=3,
+        dec_n_points=20,
+        enc_n_points=20,
         dim_feedforward=hidden_dim,
         dropout_transformer=0.1, 
         activation="relu",
@@ -171,9 +172,9 @@ model = dict(
             num_classes=10,
         ),
         task_enable={
-            "3dod": True,
+            "3dod": False,
             "map": False,
-            "motion": False,
+            "motion": True,
         },
         task_weights={
             "3dod": 1.0,
@@ -219,28 +220,16 @@ model = dict(
         ),
         cfg_motion=dict(
             type="Motion_DETR_MOT",
-            # task_dict={
-            #     "segmentation": 2,
-            #     "instance_center": 1,
-            #     "instance_offset": 2,
-            #     # 'instance_flow': 2,
-            # },
             #in_channels=256,
             hidden_dim=hidden_dim,
             nheads=8,
-            #use_topk=True,
-            #topk_ratio=0.25,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
-            # loss_weights={
-            #     "loss_motion_seg": 1.0,
-            #     "loss_motion_flow": 1.0,
-            #     "loss_motion_prob": 100,
-            # },
+
         ),
     ),
     # model training and testing settings
@@ -456,8 +445,8 @@ input_modality = dict(
 )
 
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=4,
+    samples_per_gpu=3,
+    workers_per_gpu=3,
     train=dict(
         type="CBGSDataset",
         dataset=dict(
@@ -500,5 +489,14 @@ data = dict(
     ),
 )
 
-optimizer = dict(type="AdamW", lr=2e-4, weight_decay=0.01)
+optimizer = dict(type="AdamW", betas=(0.95, 0.99),
+                 lr=3e-4, weight_decay=0.0001)
+
+lr_config = dict(
+    policy='CosineAnnealing',
+    warmup='linear',
+    warmup_iters=3000,
+    warmup_ratio=1.0 / 10,
+    min_lr_ratio=1e-5)
+
 evaluation = dict(interval=999, pipeline=test_pipeline)
