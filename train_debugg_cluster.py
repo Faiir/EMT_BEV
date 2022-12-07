@@ -227,6 +227,7 @@ cfg_filename = "beverse_tiny_org"
 cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 
 
+
 # cfg = update_cfg(
 #     cfg,
 #     det_grid_conf=det_grid_conf,
@@ -348,7 +349,7 @@ optimizer = build_optimizer(model, cfg.optimizer)
 
 cfg.runner = {
     'type': 'EpochBasedRunner',
-    'max_epochs': 1
+    'max_epochs': 3
 }
 
 # fp16_cfg = cfg.get('fp16', None)
@@ -363,6 +364,7 @@ optimizer_config = cfg.optimizer_config
 
 # register hooks
 
+print(cfg)
 
 runner = build_runner(
     cfg.runner,
