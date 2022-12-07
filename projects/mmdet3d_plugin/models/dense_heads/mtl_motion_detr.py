@@ -177,7 +177,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.num_queries = num_queries
         
         self.backbone = build_backbone(backbone=backbone, layers=[
-                   2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats, hidden_dim=hidden_dim)
+                   2, 2, 2, 2], return_feature_layers=True, position_embedding=position_embedding, num_pos_feats=num_pos_feats, hidden_dim=hidden_dim, num_feature_level=num_feature_levels)
 
 
         self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,

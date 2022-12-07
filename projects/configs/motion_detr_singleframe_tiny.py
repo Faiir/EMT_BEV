@@ -86,7 +86,7 @@ future_discount = 1.0
 
 hidden_dim = 128
 num_queries = 300
-
+num_feature_levels = 3
 
 voxel_size = [0.1, 0.1, 0.2]
 model = dict(
@@ -149,7 +149,7 @@ model = dict(
         dim_feedforward=hidden_dim,
         dropout_transformer=0.1, 
         activation="relu",
-        num_feature_levels=4, 
+        num_feature_levels=num_feature_levels,
         num_queries=num_queries,
         backbone="resnet18",
         position_embedding="sine",
@@ -222,6 +222,8 @@ model = dict(
             type="Motion_DETR_MOT",
             #in_channels=256,
             hidden_dim=hidden_dim,
+            num_feature_levels=num_feature_levels,
+            mask_stride=4,
             nheads=8,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,

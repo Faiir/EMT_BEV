@@ -35,9 +35,11 @@ class Motion_DETR_MOT(BaseModule):
                 hidden_dim=512,
                 nheads=8,
                 use_topk=True,
-                 aux_loss=True,
+                aux_loss=True,
                 ignore_index=255,
                 num_queries=300,
+                num_feature_levels=4,
+                 mask_stride=2,
                 #posterior_with_label=False, TODO
                 sample_ignore_mode="all_valid", # TODO
                 loss_weights=None,
@@ -74,7 +76,8 @@ class Motion_DETR_MOT(BaseModule):
 
         matcher = build_assigner(matcher_config)
 
-
+        self.num_feature_levels = num_feature_levels
+        self.mask_stride = mask_stride
         weight_dict = criterion_config["weight_dict"]
         if dec_layers > 1:
             aux_weight_dict = {}
@@ -97,7 +100,10 @@ class Motion_DETR_MOT(BaseModule):
         # self.class_mlps = nn.ModuleList(self.class_mlps)
         self.class_mlp = MLP(hidden_dim, hidden_dim,
                              output_dim=self.num_classes + 1, num_layers=2)
-        self.fpn_dims_input = [64, 128, 256, 512]
+        if self.num_feature_levels == 4:
+            self.fpn_dims_input = [64, 128, 256, 512]
+        elif self.num_feature_levels == 3:
+            self.fpn_dims_input = [128, 256, 512]
 
         if upsampler_type == "V1":
             fpn_dims = [hidden_dim, hidden_dim, hidden_dim, hidden_dim]
@@ -105,18 +111,25 @@ class Motion_DETR_MOT(BaseModule):
             hidden_dim, fpn_dims, n_future=self.n_future)
         elif upsampler_type == "V2":
             fpn_dims[hidden_dim*2, hidden_dim*2, hidden_dim, hidden_dim]
+            if num_feature_levels == 3:
+                fpn_dims.pop(0)
             self.mask_head = MaskHeadSmallConvIFC_V2(
             hidden_dim, fpn_dims, n_future=self.n_future)
         elif upsampler_type == "V3":
             #fpn_dims = [256, 256, 256, 512]
             fpn_dims = [hidden_dim, hidden_dim, hidden_dim, hidden_dim*2]
+            if num_feature_levels == 3:
+                fpn_dims.pop(0)
             self.mask_head = MaskHeadSmallConvIFC_V3(
                 hidden_dim, fpn_dims, n_future=self.n_future)
         self.project_convs = []
         
         fpn_dims.reverse()
         for _in,out in zip(self.fpn_dims_input,fpn_dims):
-            self.project_convs.append(nn.Conv2d(_in, out, 3, padding=1))
+            self.project_convs.append(nn.Sequential(
+                nn.Conv2d(_in, out, kernel_size=1),
+                nn.GroupNorm(8, out),
+            ))
 
         self.project_convs = nn.ModuleList(self.project_convs)
 
@@ -225,7 +238,7 @@ class Motion_DETR_MOT(BaseModule):
             segmentation_labels = torch.stack(gt_list, dim=0)
 
             #segmentation_labels = torch.stack(gt_batch_instances_list,dim=0)
-            o_h, o_w = (200,200)# segmentation_labels[-2:]
+            o_h, o_w = segmentation_labels.shape[-2:]
             l_h, l_w = math.ceil(o_h/mask_stride), math.ceil(o_w/mask_stride)
             m_h, m_w = math.ceil(o_h/match_stride), math.ceil(o_w/match_stride)
 
@@ -248,7 +261,8 @@ class Motion_DETR_MOT(BaseModule):
         print("Loss base motion head")
         loss_dict = {}
 
-        target_list,_ = self.prepare_future_labels(targets)
+        target_list, _ = self.prepare_future_labels(
+            targets, self.mask_stride, self.mask_stride)
         loss_dict = self.criterion(predictions, target_list)
 
         # for key in loss_dict:

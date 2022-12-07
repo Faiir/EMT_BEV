@@ -220,7 +220,27 @@ def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
-
+# class ConvExtractor(nn.Module):
+#     def __init__(self, inplanes, planes,stride=1 ,groups=1) -> None:
+#         super().__init__()
+#         self.conv1 = conv3x3(inplanes, planes, stride)
+#         self.relu = nn.ReLU(inplace=True)
+#         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+#         self.conv2 = conv3x3(inplanes, planes, 2)
+#         self.conv3 = conv3x3(inplanes, planes, 2)
+#         self.conv4 = conv3x3(inplanes, planes, 2)
+        
+#         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+#         for m in self.modules():
+#             if isinstance(m, nn.Conv2d):
+#                 nn.init.kaiming_normal_(
+#                     m.weight, mode='fan_out', nonlinearity='relu')
+#             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+#                 nn.init.constant_(m.weight, 1)
+#                 nn.init.constant_(m.bias, 0)
+#     def forward(self, x):
+#         pass 
+        
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -530,18 +550,23 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
 
 class BackboneBase(nn.Module):
-    def __init__(self, backbone: nn.Module, train_backbone: bool, return_interm_layers: bool):
+    def __init__(self, backbone: nn.Module, train_backbone: bool, return_interm_layers: bool, num_feature_levels:int=4):
         super().__init__()
-        for name, parameter in backbone.named_parameters():
-            if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
-                parameter.requires_grad_(False)
         if return_interm_layers:
-            return_layers = {"layer1": "0", "layer2": "1",
-                             "layer3": "2", "layer4": "3"}
-            #return_layers = {"layer2": "0", "layer3": "1", "layer4": "2"}
-            self.strides = [2, 4, 8, 16]  # [4, 8, 16, 32]
-            # [256, 512, 1024, 2048]
-            self.num_channels = [64, 128, 256, 512]  # [64, 128, 256, 512]
+            if num_feature_levels == 4:
+                return_layers = {"layer1": "0", "layer2": "1",
+                                "layer3": "2", "layer4": "3"}
+                #return_layers = {"layer2": "0", "layer3": "1", "layer4": "2"}
+                self.strides = [2, 4, 8, 16]  # [4, 8, 16, 32]
+                # [256, 512, 1024, 2048]
+                self.num_channels = [64, 128, 256, 512]  # [64, 128, 256, 512]
+            elif num_feature_levels == 3:
+                return_layers = {"layer2": "0",
+                                "layer3": "1", "layer4": "2"}
+                #return_layers = {"layer2": "0", "layer3": "1", "layer4": "2"}
+                self.strides = [4, 8, 16]  # [4, 8, 16, 32]
+                # [256, 512, 1024, 2048]
+                self.num_channels = [128, 256, 512]  # [64, 128, 256, 512]
         else:
             return_layers = {'layer4': "0"}
             self.strides = [32]
@@ -569,7 +594,8 @@ class Backbone(BackboneBase):
                  return_interm_layers: bool,
                  dilation: bool,
                  checkpoint: bool = False,
-                 dcn: bool = False):
+                 dcn: bool = False,
+                 num_feature_levels: int = 4):
         norm_layer = FrozenBatchNorm2d
         if checkpoint or dcn:
             #print('Training with checkpoint to save GPU memory.')
@@ -605,7 +631,8 @@ class Backbone(BackboneBase):
             #backbone = resnet_creation_func()
                 #replace_stride_with_dilation=[False, False, dilation],
                 #pretrained=False, norm_layer=norm_layer)
-        super().__init__(backbone, train_backbone, return_interm_layers)
+        super().__init__(backbone, train_backbone,
+                         return_interm_layers, num_feature_levels)
         if dilation:
             self.strides[-1] = self.strides[-1] // 2
 
@@ -632,14 +659,14 @@ class Joiner(nn.Sequential):
 
 def build_backbone(backbone='resnet18', layers=[
                    2, 2, 2, 2], return_feature_layers=True, position_embedding='sine', num_pos_feats=128,hidden_dim=1024, dilation=[
-                                    False, False, False]):
+                                    False, False, False],num_feature_level=4):
     position_embedding = build_position_encoding(position_embedding, hidden_dim)
     train_backbone = True #args.lr_backbone > 0
     # return_interm_layers = args.masks or (args.num_feature_levels > 1)
     return_interm_layers = True #args.num_feature_levels > 1
     dilation= [False,False,False,False]
     backbone = Backbone(backbone, train_backbone,
-                        return_interm_layers, dilation)
+                        return_interm_layers, dilation, num_feature_levels=num_feature_level)
     model = Joiner(backbone, position_embedding)
     return model#, backbone
 
@@ -2498,20 +2525,14 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
         T = self.n_future
         fpn_dims = fpn_dims
         
+        self.num_feature_levels = len(fpn_dims)
+        
         self.lay1 = torch.nn.Conv2d(dim, dim, 3, padding=1)
         self.gn1 = torch.nn.GroupNorm(gn, dim)
         self.lay2 = torch.nn.Conv2d(dim, dim, 3, padding=1)
         self.gn2 = torch.nn.GroupNorm(gn, dim)
         self.lay3 = torch.nn.Conv2d(dim, dim, 3, padding=1)
         self.gn3 = torch.nn.GroupNorm(gn, dim)
-        self.lay4 = torch.nn.Conv2d(dim, dim*T, 3, padding=1)
-        self.gn4 = torch.nn.GroupNorm(gn, dim*T)
-        # self.lay5 = torch.nn.Conv2d(dim*2, dim*T, 3, padding=1)
-        # self.gn5 = torch.nn.GroupNorm(gn, dim*T)
-
-
-        # self.depth_sep_conv2d = depthwise_separable_conv(
-        #     dim, dim, kernel_size=5, padding=2, activation1=F.relu, activation2=F.relu)
 
 
         self.a = nn.Sequential(
@@ -2546,8 +2567,18 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
 
         self.adapter1 = torch.nn.Conv2d(fpn_dims[0], dim, 1)
         self.adapter2 = torch.nn.Conv2d(fpn_dims[1], dim, 1)
-        self.adapter3 = torch.nn.Conv2d(fpn_dims[2], dim, 1)
-        self.adapter4 = torch.nn.Conv2d(fpn_dims[3], dim*T, 1)
+        if self.num_feature_levels == 4:
+            self.adapter3 = torch.nn.Conv2d(fpn_dims[2], dim, 1)
+            self.adapter4 = torch.nn.Conv2d(fpn_dims[3], dim*T, 1)
+            self.lay3 = torch.nn.Conv2d(dim, dim, 3, padding=1)
+            self.gn3 = torch.nn.GroupNorm(gn, dim)
+            self.lay4 = torch.nn.Conv2d(dim, dim*T, 3, padding=1)
+            self.gn4 = torch.nn.GroupNorm(gn, dim*T)
+        elif self.num_feature_levels == 3:
+            self.adapter3 = torch.nn.Conv2d(fpn_dims[2], dim*T, 1)
+            self.lay3 = torch.nn.Conv2d(dim, dim*T, 3, padding=1)
+            self.gn3 = torch.nn.GroupNorm(gn, dim*T)
+            
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_uniform_(m.weight, a=1)
@@ -2573,12 +2604,14 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
 
         cur_fpn = self.adapter3(fpns[-3])
         x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
-        x = self.lay4(x)
-        x = self.gn4(x)
-        x = F.relu(x)
+        
+        if self.num_feature_levels == 4:
+            x = self.lay4(x)
+            x = self.gn4(x)
+            x = F.relu(x)
 
-        cur_fpn = self.adapter4(fpns[-4])
-        x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
+            cur_fpn = self.adapter4(fpns[-4])
+            x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
 
         T = self.n_future
         H, W = x.shape[-2:]
