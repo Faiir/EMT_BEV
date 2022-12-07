@@ -1,6 +1,7 @@
 _base_ = [
     "../../configs/_base_/datasets/nus-3d.py",
-    "../../configs/_base_/schedules/cyclic_20e.py",
+    # "../../configs/_base_/schedules/cyclic_20e.py",
+    "../../configs/_base_/schedules/cosine.py",
     "../../configs/_base_/default_runtime.py",
 ]
 
@@ -83,17 +84,17 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
-hidden_dim = 256
-num_queries = 500
-
+hidden_dim = 128
+num_queries = 300
+num_feature_levels = 3
 
 voxel_size = [0.1, 0.1, 0.2]
 model = dict(
     type="BEVerse_Motion_DETR",
     img_backbone=dict(
         type="SwinTransformer",
-        pretrained="https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth",
-        pretrain_img_size=224,
+        # pretrained="https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth",
+        # pretrain_img_size=224,
         embed_dims=96,
         patch_size=4,
         window_size=7,
@@ -141,19 +142,19 @@ model = dict(
         out_channels_map=256,
         hidden_dim=hidden_dim,
         nheads=8,
-        enc_layers=6,
-        dec_layers=6,
-        dec_n_points=8,
-        enc_n_points=8,
+        enc_layers=3,
+        dec_layers=3,
+        dec_n_points=20,
+        enc_n_points=20,
         dim_feedforward=hidden_dim,
-        dropout_transformer=0.1, 
+        dropout_transformer=0.1,
         activation="relu",
-        num_feature_levels=4, 
+        num_feature_levels=num_feature_levels,
         num_queries=num_queries,
         backbone="resnet18",
         position_embedding="sine",
         num_pos_feats=128,
-        temporal_queries_activated=False, 
+        temporal_queries_activated=False,
         flow_warp=False,
         grid_conf=grid_conf,
         det_grid_conf=det_grid_conf,
@@ -171,9 +172,9 @@ model = dict(
             num_classes=10,
         ),
         task_enable={
-            "3dod": True,
+            "3dod": False,
             "map": False,
-            "motion": False,
+            "motion": True,
         },
         task_weights={
             "3dod": 1.0,
@@ -187,7 +188,8 @@ model = dict(
             hidden_dim=hidden_dim,
             tasks=[
                 dict(num_class=1, class_names=["car"]),
-                dict(num_class=2, class_names=["truck", "construction_vehicle"]),
+                dict(num_class=2, class_names=[
+                     "truck", "construction_vehicle"]),
                 dict(num_class=2, class_names=["bus", "trailer"]),
                 dict(num_class=1, class_names=["barrier"]),
                 dict(num_class=2, class_names=["motorcycle", "bicycle"]),
@@ -219,28 +221,18 @@ model = dict(
         ),
         cfg_motion=dict(
             type="Motion_DETR_MOT",
-            # task_dict={
-            #     "segmentation": 2,
-            #     "instance_center": 1,
-            #     "instance_offset": 2,
-            #     # 'instance_flow': 2,
-            # },
             #in_channels=256,
             hidden_dim=hidden_dim,
+            num_feature_levels=num_feature_levels,
+            mask_stride=4,
             nheads=8,
-            #use_topk=True,
-            #topk_ratio=0.25,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
-            # loss_weights={
-            #     "loss_motion_seg": 1.0,
-            #     "loss_motion_flow": 1.0,
-            #     "loss_motion_prob": 100,
-            # },
+
         ),
     ),
     # model training and testing settings
@@ -280,9 +272,10 @@ model = dict(
     # ),
 )
 
+
 dataset_type = "MTLEgoNuScenesDataset"
-data_root = "/home/kraussn/ETM_BEV/data/nuscenes/"
-data_info_path = "/home/kraussn/ETM_BEV/data/nuscenes_infos/"
+data_root = "/home/kraussn/EMT_BEV/data/nuscenes/"
+data_info_path = "/home/kraussn/EMT_BEV/data/nuscenes_infos/"
 
 train_pipeline = [
     # load image and apply image-view augmentation

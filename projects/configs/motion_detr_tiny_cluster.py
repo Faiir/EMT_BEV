@@ -33,21 +33,21 @@ model = dict(
             #     # 'instance_flow': 2,
             # },
             #in_channels=256,
-            hidden_dim=256,
+            #hidden_dim=256,
             nheads=8,
-            num_queries=300,
+            #num_queries=300,
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
             upsampler_type="V3",
-            aux_loss=True, 
+            aux_loss=True,
             matcher_config={
                 "type": "HungarianMatcherIFC",
                 "cost_class": 1,
                 "cost_dice": 3.0,
                 "num_classes": 100,
-                "n_future": future_frames +1 
+                "n_future": future_frames + 1
             },
             criterion_config={
                 "num_classes": 100,
@@ -57,7 +57,7 @@ model = dict(
                 "losses": ["labels", "masks", "cardinality"],
             },
             dec_layers=6,
-    ),),
+        ),),
     train_cfg=dict(
         pts=dict(
             code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -66,8 +66,8 @@ model = dict(
 )
 
 data = dict(
-    samples_per_gpu=4,
-    workers_per_gpu=4,
+    samples_per_gpu=3,
+    workers_per_gpu=3,
     train=dict(
         dataset=dict(
             receptive_field=receptive_field,

@@ -241,8 +241,8 @@ dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=3,
-    workers_per_gpu=3,
+    samples_per_gpu=5,
+    workers_per_gpu=5,
     dist=False,
     shuffle=False,)]
 

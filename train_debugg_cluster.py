@@ -140,7 +140,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/kraussn/ETM_BEV/projects/configs"
+    cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -237,7 +237,7 @@ cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 #     #t_input_shape=(90, 155),
 # )
 
-cfg.data.train.dataset["data_root"] = '/home/kraussn/ETM_BEV/data/nuscenes'
+cfg.data.train.dataset["data_root"] = '/home/kraussn/EMT_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
@@ -283,7 +283,7 @@ if load_model:
 
     model_dict = model.state_dict()
     weights_tiny = torch.load(
-        "/home/kraussn/ETM_BEV/weights/beverse_tiny.pth")['state_dict']
+        "/home/kraussn/EMT_BEV/weights/beverse_tiny.pth")['state_dict']
 
     search_weights = tuple(weights_tiny.keys())
 
@@ -309,7 +309,7 @@ if load_model:
             print(f"Grad enabled for {k}")
 
 # weights_tiny = torch.load( # 
-#     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
+#     "/home/niklas/EMT_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
 # model.load_state_dict(weights_tiny)
 
 
@@ -319,12 +319,12 @@ model.cuda()
 
 model = MMDataParallel(model, device_ids=[0])
 
-mmcv.mkdir_or_exist(osp.abspath(r"/home/krausn/ETM_BEV/logs/local_train_debug"))
+mmcv.mkdir_or_exist(osp.abspath(r"/home/kraussn/EMT_BEV/logs/local_train_debug"))
 
 # init the logger before other steps
 timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 log_file = osp.join(
-    r"/home/krausn/ETM_BEV/logs/local_train_debug", f'{timestamp}.log')
+    r"/home/kraussn/EMT_BEV/logs/local_train_debug", f'{timestamp}.log')
 
 
 logger_name = 'mmdet'
