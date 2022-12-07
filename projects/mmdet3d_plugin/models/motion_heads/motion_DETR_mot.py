@@ -1,4 +1,5 @@
 import math
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -155,13 +156,17 @@ class Motion_DETR_MOT(BaseModule):
         3. decode present & future states with the decoder heads
         """
 
-
+        start = time.time()
         input_projections = []
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
         outputs_masks = torch.utils.checkpoint.checkpoint(
             self.mask_head, seg_memory, input_projections, hs)
+        
+        torch.cuda.synchronize()
+        t_mask = time.time()
+        print(f"Time Mask Head {t_mask-start:.2f} seconds")
         # outputs_masks = self.mask_head(
         #     seg_memory, input_projections, hs)
 
@@ -249,8 +254,8 @@ class Motion_DETR_MOT(BaseModule):
 
             # labels only continous for clip - this is much more of an tracking id as every class is a vehicle anyways # TODO make work with other types of superclasses other then vehicle
             #ids = gt_instance[b].unique()
-            print(
-                f"Labels over {len(gt_instance[b])} for Batch {b+1}, no.labels {label_t_list} no.masks {gt_masks_for_match.shape}")
+            # print(
+            #     f"Labels over {len(gt_instance[b])} for Batch {b+1}, no.labels {label_t_list} no.masks {gt_masks_for_match.shape}")
             target_list.append({"labels": ids, "masks": gt_masks_for_loss,
                                "match_masks": gt_masks_for_match, "gt_motion_instance": gt_instance[b]})
         return target_list, future_egomotion[:, (self.receptive_field - 1):]
@@ -258,7 +263,6 @@ class Motion_DETR_MOT(BaseModule):
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
-        print("Loss base motion head")
         loss_dict = {}
 
         target_list, _ = self.prepare_future_labels(
@@ -267,8 +271,8 @@ class Motion_DETR_MOT(BaseModule):
 
         # for key in loss_dict:
         #     loss_dict[key] *= self.loss_weights.get(key, 1.0)
-        for k in loss_dict:
-            print(f"Loss for {k}: {loss_dict[k]}")
+        # for k in loss_dict:
+        #     print(f"Loss for {k}: {loss_dict[k]}")
         return loss_dict
 
     def inference(self, predictions): #TODO

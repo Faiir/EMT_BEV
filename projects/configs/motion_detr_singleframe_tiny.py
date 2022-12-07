@@ -492,7 +492,7 @@ data = dict(
 )
 
 optimizer = dict(type="AdamW", betas=(0.95, 0.99),
-                 lr=3e-4, weight_decay=0.0001)
+                 lr=2e-4, weight_decay=0.0001)
 
 lr_config = dict(
     policy='CosineAnnealing',

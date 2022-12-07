@@ -242,7 +242,7 @@ dataset = build_dataset(cfg.data.train)
 data_loaders = [build_dataloader(
     dataset,
     samples_per_gpu=5,
-    workers_per_gpu=5,
+    workers_per_gpu=1,
     dist=False,
     shuffle=False,)]
 
@@ -312,18 +312,17 @@ if load_model:
 # model.load_state_dict(weights_tiny)
 
 
-
-
 model.cuda()
-
 model = MMDataParallel(model, device_ids=[0])
 
-mmcv.mkdir_or_exist(osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/local_train_debug"))
+
+log_path  = osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/testspeed")
+mmcv.mkdir_or_exist(log_path)
 
 # init the logger before other steps
 timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 log_file = osp.join(
-    r"/home/niklas/ETM_BEV/BEVerse/logs/local_train_debug", f'{timestamp}.log')
+    log_path, f'{timestamp}.log')
 
 
 logger_name = 'mmdet'

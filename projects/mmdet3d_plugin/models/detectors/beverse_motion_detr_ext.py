@@ -70,24 +70,26 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
                          aug_transform=None, img_is_valid=None, count_time=False):
         # image-view feature extraction
         imgs = img[0]
-
+        #t_start = time.time()
         B, S, N, C, imH, imW = imgs.shape
         imgs = imgs.view(B * S * N, C, imH, imW)
         #x = self.img_backbone(imgs)
         x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
-        for f in x:
-            if torch.any(torch.isinf(f)):
-                print(f"Found inf / -inf in img_backbone")
-            if f.isnan().sum() > 0 or f.sum() == 0.0:
-                print("img_backbone nan")
-
-        print(
-            f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # for f in x:
+        #     if torch.any(torch.isinf(f)):
+        #         print(f"Found inf / -inf in img_backbone")
+        #     if f.isnan().sum() > 0 or f.sum() == 0.0:
+        #         print("img_backbone nan")
+        # torch.cuda.synchronize()
+        # t_backbone = time.time()
+        # print(f"Time backbone {t_backbone-t_start:.2f} seconds")
+        # print(
+        #     f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         if self.with_img_neck:
             x = self.img_neck(x)
-        print(
-            f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # print(
+        #     f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         if isinstance(x, tuple):
             x_list = []
             for x_tmp in x:
@@ -101,11 +103,12 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         # lifting with LSS
         x = self.transformer([x] + img[1:])
 
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         t_BEV = time.time()
-        print(
-            f"Memory allcoated after LSS : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
-        # temporal processing
+        # print(f"Time LSS {t_BEV-t_backbone:.2f} seconds")
+        # print(
+        #     f"Memory allcoated after LSS : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # # temporal processing
         # x = self.temporal_model(x, future_egomotion=future_egomotion,
         #                         aug_transform=aug_transform, img_is_valid=img_is_valid)
         x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
@@ -113,8 +116,10 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
 
         torch.cuda.synchronize()
         t_temporal = time.time()
-        print(
-            f"Memory allcoated after temporal_model : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        #print(f"Time Temporal {t_temporal-t_BEV:.2f} seconds")
+    
+        # print(
+        #     f"Memory allcoated after temporal_model : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         if count_time:
             return x, {'t_BEV': t_BEV, 't_temporal': t_temporal}
         else:
@@ -138,11 +143,18 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         """
 
         # decoders for multi-task
+        #start = time.time()
         outs = self.pts_bbox_head(pts_feats, targets=mtl_targets)
-
+        # torch.cuda.synchronize()
+        # end = time.time()
+        
+        #print(f"Forward Head overall: {end-start:.2f} seconds ")
         # loss functions for multi-task
         losses = self.pts_bbox_head.loss(predictions=outs, targets=mtl_targets)
+        # torch.cuda.synchronize()
+        # end2 = time.time()
         
+        # print(f"Forward Loss overall: {end2-end:.2f} seconds ")
         return losses
 
     @auto_fp16(apply_to=("img_inputs"))
@@ -194,8 +206,9 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         Returns:
             dict: Losses of different branches.
         """
-        print(
-            f"Memory allcoated before extract image features : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # print(
+        #     f"Memory allcoated before extract image features : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        start = time.time()
         img_feats = self.extract_img_feat(
             img=img_inputs,
             img_metas=img_metas,
@@ -203,6 +216,11 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
             aug_transform=aug_transform,
             img_is_valid=img_is_valid,
         )
+
+        torch.cuda.synchronize()
+        end = time.time()
+
+        print(f"Forward Image Encoding overall: {end-start:.2f} seconds ")
 
         mtl_targets = {
             # for detection

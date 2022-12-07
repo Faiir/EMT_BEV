@@ -1,4 +1,4 @@
-_base_ = ["./motion_detr_singleframe_tiny.py"]
+_base_ = ["./motion_detr_singleframe_tiny_cluster.py"]
 
 receptive_field = 3
 future_frames = 4

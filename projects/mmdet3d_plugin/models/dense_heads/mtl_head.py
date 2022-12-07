@@ -247,8 +247,8 @@ class MultiTaskHead(BaseModule):
     def forward(self, bev_feats, targets=None):
         if self.shared_feature:
             return self.forward_with_shared_features(bev_feats, targets)
-        if bev_feats.isnan().sum() > 0:
-            print("bev_feats nan")
+        # if bev_feats.isnan().sum() > 0:
+        #     print("bev_feats nan")
         predictions = {}
         for task_name, task_feat_encoder in self.taskfeat_encoders.items():
 
@@ -260,15 +260,15 @@ class MultiTaskHead(BaseModule):
             self.logger.debug(f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
             # task-specific decoder
             if task_name == "motion":
-                if task_feat.isnan().sum() > 0:
-                    print("task_feat nan")
+                # if task_feat.isnan().sum() > 0:
+                #     print("task_feat nan")
                 
                 task_pred = self.task_decoders[task_name]([task_feat], targets=targets)
                 # self.logger.debug(
                 #     f"MTL-HEAD forward task_pred motion: {str(task_pred.shape)}"
                 # )
-                if task_feat.isnan().sum() > 0:
-                    print("task_feat nan")
+                # if task_feat.isnan().sum() > 0:
+                #     print("task_feat nan")
             else:
                 task_pred = self.task_decoders[task_name]([task_feat])
                 # self.logger.debug(
