@@ -497,8 +497,8 @@ optimizer = dict(type="AdamW", betas=(0.95, 0.99),
 lr_config = dict(
     policy='CosineAnnealing',
     warmup='linear',
-    warmup_iters=3000,
+    warmup_iters=2000,
     warmup_ratio=1.0 / 10,
-    min_lr_ratio=1e-5)
+    min_lr_ratio=2e-5)
 
 evaluation = dict(interval=999, pipeline=test_pipeline)

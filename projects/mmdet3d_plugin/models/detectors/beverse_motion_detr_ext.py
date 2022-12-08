@@ -208,7 +208,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         """
         # print(
         #     f"Memory allcoated before extract image features : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
-        start = time.time()
+        
         img_feats = self.extract_img_feat(
             img=img_inputs,
             img_metas=img_metas,
@@ -217,10 +217,6 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
             img_is_valid=img_is_valid,
         )
 
-        torch.cuda.synchronize()
-        end = time.time()
-
-        print(f"Forward Image Encoding overall: {end-start:.2f} seconds ")
 
         mtl_targets = {
             # for detection

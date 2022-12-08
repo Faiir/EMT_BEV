@@ -156,7 +156,7 @@ class Motion_DETR_MOT(BaseModule):
         3. decode present & future states with the decoder heads
         """
 
-        start = time.time()
+
         input_projections = []
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
@@ -164,9 +164,7 @@ class Motion_DETR_MOT(BaseModule):
         outputs_masks = torch.utils.checkpoint.checkpoint(
             self.mask_head, seg_memory, input_projections, hs)
         
-        torch.cuda.synchronize()
-        t_mask = time.time()
-        print(f"Time Mask Head {t_mask-start:.2f} seconds")
+
         # outputs_masks = self.mask_head(
         #     seg_memory, input_projections, hs)
 

@@ -239,10 +239,12 @@ cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
 
+
+# 3 5 time: 0.746, data_time: 0.042
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=5,
-    workers_per_gpu=1,
+    samples_per_gpu=3,
+    workers_per_gpu=6,
     dist=False,
     shuffle=False,)]
 
