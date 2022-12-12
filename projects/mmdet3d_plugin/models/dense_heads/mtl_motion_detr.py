@@ -53,6 +53,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         backbone="resnet18",
         position_embedding="sine",
         num_pos_feats=128,
+        return_intermediate_dec= True, 
         #in_channels=64,
         hidden_dim=512,
         nheads=8, 
@@ -92,7 +93,9 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.task_names_ordered = ["map", "3dod", "motion"]
         self.taskfeat_encoders = nn.ModuleDict()
         assert bev_encoder_type == "resnet18"
-
+        self.return_intermediate_dec = return_intermediate_dec
+        if self.return_intermediate_dec:
+            self.aux_outputs = dec_layers
         # whether to use shared features
         self.shared_feature = shared_feature
         if self.shared_feature:
@@ -183,7 +186,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.transformer = build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
                                                         dim_feedforward, dropout_transformer, activation,
                                                         num_feature_levels, dec_n_points, enc_n_points,
-                                                        num_queries)
+                                                        num_queries, return_intermediate_dec)
         # self.DETR = build_detr(
         #     self.backbone, self.transformer, num_classes, num_queries, num_feature_levels)
         
@@ -245,6 +248,18 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             task_loss_dict[key] = val * self.task_weights.get(task_name, 1.0)
 
         task_loss_summation = sum(list(task_loss_dict.values()))
+        if task_name == "motion":
+            cardi = task_loss_dict["cardinality_error"]
+            class_error = task_loss_dict["class_error"]
+            task_loss_summation = task_loss_summation - cardi - class_error
+            if self.return_intermediate_dec:
+                for i in range(self.aux_outputs):
+                    cardi_key = "cardinality_error" + f'_{i+1}'
+                    class_key = "class_error" + f'_{i+1}'
+                    cardi = task_loss_dict[cardi_key]
+                    class_error = task_loss_dict[class_key]
+                    task_loss_summation = task_loss_summation - cardi - class_error
+                    
         task_loss_dict["{}_sum".format(task_name)] = task_loss_summation
 
         return task_loss_dict
@@ -277,6 +292,12 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         if self.task_enable.get("motion", False):
             motion_loss_dict = self.task_decoders["motion"].loss(
                 predictions["motion"],targets)
+           
+            weight_dict = self.task_decoders["motion"].criterion.weight_dict
+            for k in motion_loss_dict.keys():
+                if k in weight_dict:
+                    motion_loss_dict[k] *= weight_dict[k]
+                    
             loss_dict.update(
                 self.scale_task_losses(
                     task_name="motion", task_loss_dict=motion_loss_dict

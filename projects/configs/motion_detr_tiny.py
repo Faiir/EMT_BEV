@@ -51,12 +51,12 @@ model = dict(
             },
             criterion_config={
                 "num_classes": 100,
-                "weight_dict": {"loss_ce": 1, "loss_mask": 3.0,
+                "weight_dict": {"loss_ce": 1, "loss_mask": 100.0,
                                 "loss_dice": 3.0},
                 "eos_coef": 0.1,
                 "losses": ["labels", "masks", "cardinality"],
             },
-            dec_layers=6,
+            
     ),),
     train_cfg=dict(
         pts=dict(

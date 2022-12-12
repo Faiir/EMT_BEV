@@ -64,7 +64,7 @@ class HungarianMatcherIFC(torch.nn.Module):
 
         if (s_h, s_w) != (t_h, t_w):
             out_mask = out_mask.reshape(B, Q*T, s_h, s_w)
-            out_mask = torch.nn.F.interpolate(out_mask, size=(
+            out_mask = torch.nn.functional.interpolate(out_mask, size=(
                 t_h, t_w), mode="bilinear", align_corners=False)
             out_mask = out_mask.view(B, Q, T, t_h, t_w)
 

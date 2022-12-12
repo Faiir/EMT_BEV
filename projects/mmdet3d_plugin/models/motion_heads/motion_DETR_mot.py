@@ -41,6 +41,7 @@ class Motion_DETR_MOT(BaseModule):
                 num_queries=300,
                 num_feature_levels=4,
                  mask_stride=2,
+                 match_stride=2,
                 #posterior_with_label=False, TODO
                 sample_ignore_mode="all_valid", # TODO
                 loss_weights=None,
@@ -79,6 +80,7 @@ class Motion_DETR_MOT(BaseModule):
 
         self.num_feature_levels = num_feature_levels
         self.mask_stride = mask_stride
+        self.match_stride = match_stride
         weight_dict = criterion_config["weight_dict"]
         if dec_layers > 1:
             aux_weight_dict = {}
@@ -136,7 +138,7 @@ class Motion_DETR_MOT(BaseModule):
 
         self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
-        self.aux_loss = aux_loss
+        self.aux_loss = None 
         self.ignore_index = ignore_index
         #self.bev_projection = nn.Conv2d(in_channels=64,out_channels=64,kernel=1,padding=0)
 
@@ -155,6 +157,11 @@ class Motion_DETR_MOT(BaseModule):
         2. iteratively get future states with ConvGRU
         3. decode present & future states with the decoder heads
         """
+        if self.aux_loss is None:
+            if hs.shape[0] > 1:
+                self.aux_loss = True
+            else:
+                self.aux_loss = False
 
 
         input_projections = []
@@ -226,22 +233,37 @@ class Motion_DETR_MOT(BaseModule):
             ids = gt_instance[b].unique()
 
             ids = ids[ids!=self.ignore_index]
-
+            ids = ids[ids != 0]
+            
             label_t_list = []
             for t in gt_instance[b]:
                 t_labels =t.unique()
                 t_labels = t_labels[t_labels != self.ignore_index]
+                t_labels = t_labels[t_labels != 0]
+                
                 label_t_list.append(len(t_labels))
 
-            for _id in ids:
+            if len(ids) == 0:
                 test_bool = torch.where(
-                    gt_instance[b] == _id, 1., 0.)
+                                        gt_instance[b] == 0, 0., 0.)
+                ids = torch.tensor([self.num_classes],
+                                   device=test_bool.device).long()
+                #print("found empty frame")
                 gt_list.append(test_bool)
+            else:
+                for _id in ids:
+                    test_bool = torch.where(
+                        gt_instance[b] == _id, 1., 0.)
+                    gt_list.append(test_bool)
+
+                    #     continue
+                    
+            #! TODO -> how to deal with the 0 dimension 
 
             segmentation_labels = torch.stack(gt_list, dim=0)
 
             #segmentation_labels = torch.stack(gt_batch_instances_list,dim=0)
-            o_h, o_w = segmentation_labels.shape[-2:]
+            o_h, o_w = (200,200) #segmentation_labels.shape[-2:]
             l_h, l_w = math.ceil(o_h/mask_stride), math.ceil(o_w/mask_stride)
             m_h, m_w = math.ceil(o_h/match_stride), math.ceil(o_w/match_stride)
 
@@ -264,7 +286,7 @@ class Motion_DETR_MOT(BaseModule):
         loss_dict = {}
 
         target_list, _ = self.prepare_future_labels(
-            targets, self.mask_stride, self.mask_stride)
+            targets, self.mask_stride, self.match_stride)
         loss_dict = self.criterion(predictions, target_list)
 
         # for key in loss_dict:
@@ -483,7 +505,7 @@ class SetCriterion(nn.Module):
 
         losses = {
             "loss_mask": sigmoid_focal_loss(src_masks, target_masks, num_masks),
-            "loss_dice": dice_loss(src_masks, target_masks, num_masks),
+            "loss_dice": dice_loss(src_masks, target_masks, num_masks), 
         }
         return losses
 
@@ -550,5 +572,6 @@ class SetCriterion(nn.Module):
                         loss, aux_outputs, targets, indices, num_masks, **kwargs)
                     l_dict = {k + f'_{i+1}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
+        
 
         return losses

@@ -84,7 +84,7 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
-hidden_dim = 128
+hidden_dim = 256
 num_queries = 300
 num_feature_levels = 3
 
@@ -154,6 +154,7 @@ model = dict(
         backbone="resnet18",
         position_embedding="sine",
         num_pos_feats=128,
+        return_intermediate_dec=False,
         temporal_queries_activated=False, 
         flow_warp=False,
         grid_conf=grid_conf,
@@ -223,7 +224,8 @@ model = dict(
             #in_channels=256,
             hidden_dim=hidden_dim,
             num_feature_levels=num_feature_levels,
-            mask_stride=4,
+            mask_stride=1,
+            match_stride=4,
             nheads=8,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,
@@ -231,6 +233,7 @@ model = dict(
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
+            dec_layers=3
 
         ),
     ),
@@ -492,12 +495,12 @@ data = dict(
 )
 
 optimizer = dict(type="AdamW", betas=(0.95, 0.99),
-                 lr=2e-4, weight_decay=0.0001)
+                 lr=1e-4, weight_decay=0.0001)
 
 lr_config = dict(
     policy='CosineAnnealing',
     warmup='linear',
-    warmup_iters=2000,
+    warmup_iters=3000,
     warmup_ratio=1.0 / 10,
     min_lr_ratio=2e-5)
 

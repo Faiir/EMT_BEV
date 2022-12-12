@@ -156,6 +156,7 @@ model = dict(
         num_pos_feats=128,
         temporal_queries_activated=False,
         flow_warp=False,
+        return_intermediate_dec=False,
         grid_conf=grid_conf,
         det_grid_conf=det_grid_conf,
         map_grid_conf=map_grid_conf,
@@ -224,7 +225,8 @@ model = dict(
             #in_channels=256,
             hidden_dim=hidden_dim,
             num_feature_levels=num_feature_levels,
-            mask_stride=4,
+            mask_stride=1,
+            match_stride=4,
             nheads=8,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,
@@ -232,6 +234,7 @@ model = dict(
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
+            dec_layers=3
 
         ),
     ),

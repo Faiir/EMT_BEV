@@ -1061,7 +1061,7 @@ class DeformableTransformerDecoder(nn.Module):
         if self.return_intermediate:
             return torch.stack(intermediate), torch.stack(intermediate_reference_points)
 
-        return output, reference_points
+        return output.unsqueeze(0), reference_points.unsqueeze(0)
 
 
 def _get_clones(module, N):
@@ -1088,7 +1088,7 @@ def _get_activation_fn(activation):
 def build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers, 
                                  dim_feedforward, dropout_transformer, activation,
                                  num_feature_levels, dec_n_points, enc_n_points,
-                                 num_queries):
+                                 num_queries, return_intermediate_dec=True):
     return DeformableTransformer(
         d_model=hidden_dim,
         nhead=nheads,
@@ -1097,7 +1097,7 @@ def build_deforamble_transformer(hidden_dim, nheads, enc_layers, dec_layers,
         dim_feedforward=dim_feedforward,
         dropout=dropout_transformer,
         activation=activation,
-        return_intermediate_dec=True,
+        return_intermediate_dec=return_intermediate_dec,
         num_feature_levels=num_feature_levels,
         dec_n_points=dec_n_points,
         enc_n_points=enc_n_points,
