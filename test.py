@@ -1,3 +1,6 @@
+from mmseg import __version__ as mmseg_version
+from mmdet3d import __version__ as mmdet3d_version
+from mmdet import __version__ as mmdet_version
 import pickle
 from os import path as osp
 from mmdet3d.utils import collect_env
@@ -212,7 +215,7 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
+cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 
 
 
@@ -229,10 +232,9 @@ cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
 #     #t_input_shape=(90, 155),
 # )
 
-
 #model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"))
 
-train_setup = True 
+train_setup = True  
 if train_setup:
     cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
@@ -241,17 +243,32 @@ else:
     dataset = build_dataset(cfg.data.test)
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=2,
+    samples_per_gpu=1,
     workers_per_gpu=cfg.data.workers_per_gpu,
     dist=False,
     shuffle=False,)]
 
-#sample = next(iter(data_loaders[0]))
+sample = next(iter(data_loaders[0]))
 
 
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))
 #wrap_fp16_model(model)
 
+load_model = True 
+if load_model:
+    cfg.checkpoint_config.meta = dict(
+        mmdet_version=mmdet_version,
+        mmseg_version=mmseg_version,
+        mmdet3d_version=mmdet3d_version,
+        config=cfg.pretty_text,
+        CLASSES=dataset.CLASSES,
+        PALETTE=dataset.PALETTE  # for segmentors
+        if hasattr(dataset, 'PALETTE') else None)
+
+    weights_tiny = torch.load(
+        "/home/niklas/ETM_BEV/BEVerse/logs_cluster/epoch_5.pth")['state_dict']
+
+    model.load_state_dict(weights_tiny)
 
 model.cuda()
 model = MMDataParallel(model, device_ids=[0])
@@ -264,7 +281,7 @@ model = MMDataParallel(model, device_ids=[0])
 # model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
 
 
-# sample = next(iter(data_loader))
+#sample = next(iter(data_loader))
 #sample=None
 if not train_setup:
     motion_distribution_targets = {
@@ -288,18 +305,21 @@ if not train_setup:
             img_is_valid=sample["img_is_valid"][0],
         )
 
+
+
+
 cfg.work_dir = "./"
 meta = dict()
 # log env info
-env_info_dict = collect_env()
-env_info = '\n'.join([(f'{k}: {v}') for k, v in env_info_dict.items()])
-dash_line = '-' * 60 + '\n'
-logger.info('Environment info:\n' + dash_line + env_info + '\n' +
-            dash_line)
-meta['env_info'] = env_info
-meta['config'] = cfg.pretty_text
-meta['seed'] = 1337
-meta['exp_name'] = "testname"
+# env_info_dict = collect_env()
+# env_info = '\n'.join([(f'{k}: {v}') for k, v in env_info_dict.items()])
+# dash_line = '-' * 60 + '\n'
+# logger.info('Environment info:\n' + dash_line + env_info + '\n' +
+#             dash_line)
+# meta['env_info'] = env_info
+# meta['config'] = cfg.pretty_text
+# meta['seed'] = 1337
+# meta['exp_name'] = "testname"
 
 optimizer = build_optimizer(model, cfg.optimizer)
 

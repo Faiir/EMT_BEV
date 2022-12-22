@@ -84,7 +84,7 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
-hidden_dim = 256
+hidden_dim = 128
 num_queries = 300
 num_feature_levels = 3
 

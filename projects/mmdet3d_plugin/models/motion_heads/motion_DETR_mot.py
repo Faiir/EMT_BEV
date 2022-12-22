@@ -12,7 +12,7 @@ from ...datasets.utils.geometry import cumulative_warp_features_reverse
 from ...datasets.utils.instance import predict_instance_segmentation_and_trajectories
 from ...datasets.utils.warper import FeatureWarper
 from ...visualize import Visualizer
-
+from ..utils.vis_utils import plot_all
 
 from ..deformable_detr_modules import MLP, MaskHeadSmallConvIFC, MaskHeadSmallConvIFC_V2, MaskHeadSmallConvIFC_V3
 from mmdet.core import build_assigner
@@ -136,7 +136,7 @@ class Motion_DETR_MOT(BaseModule):
 
         self.project_convs = nn.ModuleList(self.project_convs)
 
-        self.visualizer = Visualizer(out_dir="train_visualize")
+        #self.visualizer = Visualizer(out_dir="train_visualize")
         self.warper = FeatureWarper(grid_conf=grid_conf)
         self.aux_loss = None 
         self.ignore_index = ignore_index
@@ -297,20 +297,31 @@ class Motion_DETR_MOT(BaseModule):
 
     def inference(self, predictions): #TODO
         # [b, s, num_cls, h, w]
-        mask_cls = predictions["pred_logits"]
-        mask_pred = predictions["pred_masks"]
+        results = []
+        for b in range(predictions["pred_logits"].shape[0]):
+            mask_cls = predictions["pred_logits"][b]  # torch.Size([1, 101, 101])
+            # torch.Size([1, 300, 5, 50, 50])
+            mask_pred = predictions["pred_masks"][b]
 
-        # For each mask we assign the best class or the second best if the best on is `no_object`.
-        _idx = self.num_classes + 1
-        mask_cls = F.softmax(mask_cls, dim=-1)[:, :_idx]
-        scores, labels = mask_cls.max(-1)
+            # For each mask we assign the best class or the second best if the best on is `no_object`.
+            _idx = self.num_classes + 1
+            mask_cls = F.softmax(mask_cls, dim=-1)[:, :, :_idx]
+            # torch.Size([1, 101]) # torch.Size([1, 101])
+            scores, labels = mask_cls.max(-1)
 
-        valid = (labels < self.num_classes)
-        scores = scores[valid]
-        labels = labels[valid]
-        mask_cls = mask_cls[valid]
-        mask_pred = mask_pred[valid]
+            for i ,(scores_per_clip, labels_per_clip ,mask_per_clip) in enumerate(zip(scores,labels,mask_pred)):
+                result_dict = {}
+                valid = (labels < self.num_classes)  # torch.Size([1, 101])
+                scores_per_clip = scores_per_clip[valid]  # torch.Size([1, 101])
+                labels_per_clip = labels_per_clip[valid]  # torch.Size([1, 101])
+                #mask_cls = mask_cls[valid] # torch.Size([1, 101, 101])
+                mask_per_clip = mask_per_clip[valid]  # torch.Size([1, 300, 5, 50, 50])
 
+                result_dict["scores"] = scores_per_clip
+                result_dict["pred_classes"] = labels_per_clip
+                result_dict["scores"] = scores_per_clip
+                
+                
         results = "todp"
         # results = Instances(image_size)
         # results.scores = scores
@@ -443,6 +454,7 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
+        self.plot_prediction= True 
 
     def loss_labels(self, outputs, targets, indices, num_masks, log=True):
         """Classification loss (NLL)
@@ -490,7 +502,10 @@ class SetCriterion(nn.Module):
 
         idx = self._get_src_permutation_idx(indices)
         src_masks = outputs["pred_masks"][idx]# matched maskes from Queryset
-
+        
+        if self.plot_prediction:
+            self._vis_prediction(outputs,targets,indices)
+            
         target_masks = torch.cat(
             [t['masks'][i] for t, (_, i) in zip(targets, indices)]).to(src_masks)
 
@@ -508,6 +523,30 @@ class SetCriterion(nn.Module):
             "loss_dice": dice_loss(src_masks, target_masks, num_masks), 
         }
         return losses
+
+    @torch.no_grad()
+    def _vis_prediction(self, outputs, targets, indices):
+        
+        idx = self._get_src_permutation_idx(indices)
+        # matched maskes from Queryset torch.Size([3, 5, 50, 50]) with IDX
+        src_masks = outputs["pred_masks"][0].transpose(1,0)#[idx]
+        src_logits = outputs['pred_logits']
+        #idx = self._get_src_permutation_idx(indices)
+        target_classes_o = torch.cat([t["labels"][J]
+                                     for t, (_, J) in zip(targets, indices)])
+        target_classes = torch.full(src_logits.shape[:2], self.num_classes,
+                                    dtype=torch.int64, device=src_logits.device)# 12
+        target_classes[idx] = target_classes_o
+
+        gt_masks = [t["gt_motion_instance"] for t in targets]
+        t_h, t_w = gt_masks[0].shape[-2:]
+
+        src_masks = F.interpolate(src_masks, size=(t_h, t_w), mode="bilinear", align_corners=False).sigmoid().transpose(1,0)  # torch.Size([12, 5, 200, 200]) -> 12 5 
+        
+        src_masks = (src_masks > 0.1).float() #
+
+        plot_all(src_masks, gt_masks, src_logits,
+                 target_classes_o, save_name="train_prediction")
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
