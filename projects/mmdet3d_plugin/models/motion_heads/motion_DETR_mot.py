@@ -526,10 +526,10 @@ class SetCriterion(nn.Module):
 
     @torch.no_grad()
     def _vis_prediction(self, outputs, targets, indices):
-        
         idx = self._get_src_permutation_idx(indices)
         # matched maskes from Queryset torch.Size([3, 5, 50, 50]) with IDX
         src_masks = outputs["pred_masks"][0].transpose(1,0)#[idx]
+        src_masks_matcher = outputs["pred_masks"][idx]
         src_logits = outputs['pred_logits']
         #idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.cat([t["labels"][J]
@@ -542,10 +542,13 @@ class SetCriterion(nn.Module):
         t_h, t_w = gt_masks[0].shape[-2:]
 
         src_masks = F.interpolate(src_masks, size=(t_h, t_w), mode="bilinear", align_corners=False).sigmoid().transpose(1,0)  # torch.Size([12, 5, 200, 200]) -> 12 5 
-        
-        src_masks = (src_masks > 0.1).float() #
+        src_masks_matcher = F.interpolate(src_masks_matcher, size=(t_h, t_w), mode="bilinear", align_corners=False).sigmoid(
+        ).transpose(1, 0)  # torch.Size([12, 5, 200, 200]) -> 12 5
 
-        plot_all(src_masks, gt_masks, src_logits,
+        src_masks = (src_masks > 0.15).float() #
+        src_masks_matcher = (src_masks_matcher > 0.15).float()
+
+        plot_all(src_masks, src_masks_matcher, gt_masks, src_logits,
                  target_classes_o, save_name="train_prediction")
 
     def _get_src_permutation_idx(self, indices):
