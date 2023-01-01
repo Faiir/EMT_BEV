@@ -57,8 +57,9 @@ class HungarianMatcherIFC(torch.nn.Module):
     @torch.no_grad()
     def forward(self, outputs, targets):
         # We flatten to compute the cost matrices in a batch
+        # torch.Size([1, 300, 101])
         out_prob = outputs["pred_logits"].softmax(-1)
-        out_mask = outputs["pred_masks"]
+        out_mask = outputs["pred_masks"]  # torch.Size([1, 300, 5, 50, 50])
         B, Q, T, s_h, s_w = out_mask.shape
         t_h, t_w = targets[0]["match_masks"].shape[-2:]
 
@@ -71,21 +72,22 @@ class HungarianMatcherIFC(torch.nn.Module):
         indices = []
         for b_i in range(B):
             # tensor([0, 1, 2], device='cuda:0')
-            b_tgt_ids = targets[b_i]["labels"] #19
+            b_tgt_ids = targets[b_i]["labels"] #19 tensor([ 1,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 16, 17, 18, 19, 21, 22,23, 24, 25, 26, 28, 31, 33, 34, 35], device='cuda:0')
+            #torch.Size([27])
             b_out_prob = out_prob[b_i]  # 
 
-            
-            cost_class = b_out_prob[:, b_tgt_ids]  # torch.Size([1, 3, 101]) 
+            cost_class = b_out_prob[:, b_tgt_ids]  # torch.Size([300, 27])
 
-            b_tgt_mask = targets[b_i]["match_masks"] # #GxTxHxW
-            b_out_mask = out_mask[b_i]   #QxTxHxW
+            # GxTxHxW torch.Size([27, 5, 50, 50])
+            b_tgt_mask = targets[b_i]["match_masks"]
+            b_out_mask = out_mask[b_i]  # QxTxHxW torch.Size([300, 5, 50, 50])
 
             # Compute the dice coefficient cost between masks
             # The 1 is a constant that doesn't change the matching as cost_class, thus omitted.
             
             cost_dice = dice_coef(
                 b_out_mask, b_tgt_mask
-            ).to(cost_class)
+            ).to(cost_class)  # torch.Size([300, 27])
 
             # Final cost matrix
             #! CHECK INDEX OF BATCH DIMENSION MIGHT NEED TO TRANSPOSE??

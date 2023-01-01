@@ -88,6 +88,25 @@ def generate_instance_colours(instance_map):
             }
 
 
+def linidx_take(val_arr, z_indices):
+
+    # Get number of columns and rows in values array
+    _, nC, nR = val_arr.shape
+
+    # Get linear indices and thus extract elements with np.take
+    idx = nC*nR*z_indices + nR * \
+        torch.arange(nR, device=val_arr.device)[
+            :, None] + torch.arange(nC, device=val_arr.device)
+    val_arr_ravel_shape = val_arr.ravel().shape
+    bool_array = torch.zeros(
+        val_arr_ravel_shape, dtype=bool, device=val_arr.device)
+    bool_array[idx.ravel()] = True
+    bool_array = bool_array.reshape(val_arr.shape).float()
+    res = val_arr * bool_array
+    # torch.take(val_arr, idx)  # Or val_arr.ravel()[idx]
+    return res 
+
+
 def plot_instance_map(instance_image, instance_map, max_instance_num=None, instance_colours=None, bg_image=None):
     if isinstance(instance_image, torch.Tensor):
         instance_image = instance_image.cpu().numpy()
@@ -130,6 +149,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
     num_frame = pred_mask.shape[1]
     
     ####### Print Masks Selected by Class 
+    # predmask torch.Size([300, 5, 200, 200])
     #for b in range(batch_size):
     if pred_mask_img:
         temporal_instances = pred_mask
@@ -137,9 +157,19 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         _, labels = mask_cls.max(-1)  # 100 100
         valid = (labels < num_classes)
         labels = labels [valid]
-        temporal_instances = temporal_instances[valid]
+        temporal_instances = temporal_instances[valid].transpose(1,0) # time dimension first
+        
+        for t in range(num_frame): # T x V x H x W # Find max per pixel
+            z_indices = torch.argmax(temporal_instances[t], dim=0)
+            temporal_instances[t] = linidx_take(
+                temporal_instances[t], z_indices)
+
+        temporal_instances = temporal_instances.transpose(1,0) # Detection dimension fist again 
+        temporal_instances = (temporal_instances > 0.05).float() #
+        
         for c,i in enumerate(labels):
             temporal_instances[c] = temporal_instances[c] * i
+        # torch.Size([29, 5, 200, 200])
         temporal_instances = temporal_instances.sum(0)#.transpose(1, 0)
         temporal_instances = temporal_instances.detach().cpu().numpy()
         
@@ -171,12 +201,23 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
 
         plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_prediction_batch_{0}.png')
+            f'{save_path}/{save_name}_prediction_batch_{0}_maxval.png')
         plt.close()
 
     ####### Print Masks Selected by IDX of Matcher
     if pred_mask_matcher_img:
-        temporal_instances = pred_mask_matcher.transpose(1,0)
+        temporal_instances = pred_mask_matcher
+        
+        for t in range(num_frame):  # T x V x H x W # Find max per pixel
+            z_indices = torch.argmax(temporal_instances[t], dim=0)
+            temporal_instances[t] = linidx_take(
+                temporal_instances[t], z_indices)
+
+        temporal_instances = temporal_instances.transpose(
+            1, 0)  # Detection dimension fist again
+        temporal_instances = (temporal_instances > 0.05).float()
+        
+        
         for c,l in enumerate(gt_labels):
             # torch.where(pred_mask_matcher.sum(0), 1, 0)
             temporal_instances[c] = temporal_instances[c] * l 
@@ -203,7 +244,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         # put those patched as legend-handles into the legend
         #plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_prediction_matcher_batch_{0}.png')
+            f'{save_path}/{save_name}_prediction_matcher_batch_{0}_maxval.png')
 
         plt.close()
 

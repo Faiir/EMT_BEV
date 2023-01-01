@@ -170,7 +170,7 @@ class Motion_DETR_MOT(BaseModule):
 
         outputs_masks = torch.utils.checkpoint.checkpoint(
             self.mask_head, seg_memory, input_projections, hs)
-        
+        # torch.Size([1, 1, 300, 5, 50, 50])
 
         # outputs_masks = self.mask_head(
         #     seg_memory, input_projections, hs)
@@ -181,7 +181,8 @@ class Motion_DETR_MOT(BaseModule):
 
         # # torch.Size([6, 5, 1, 300, 101])
         # outputs_class = torch.stack(outputs_class, dim=1)
-        outputs_class = torch.utils.checkpoint.checkpoint(self.class_mlp, hs)
+        outputs_class = torch.utils.checkpoint.checkpoint(
+            self.class_mlp, hs)  # torch.Size([1, 1, 300, 101])
         #outputs_class = self.class_mlp(hs)
 
         out = {'pred_logits': outputs_class[-1]} # TxBxQxC
@@ -460,13 +461,13 @@ class SetCriterion(nn.Module):
         """Classification loss (NLL)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_masks]
         """
-        src_logits = outputs['pred_logits']
-        idx = self._get_src_permutation_idx(indices)
+        src_logits = outputs['pred_logits']  # torch.Size([1, 300, 101])
+        idx = self._get_src_permutation_idx(indices) # Batch and GT
         target_classes_o = torch.cat([t["labels"][J]
-                                     for t, (_, J) in zip(targets, indices)])
+                                     for t, (_, J) in zip(targets, indices)]) # GT
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
-                                    dtype=torch.int64, device=src_logits.device)
-        target_classes[idx] = target_classes_o
+                                    dtype=torch.int64, device=src_logits.device) 
+        target_classes[idx] = target_classes_o  # Q (with GT at correct index)
 
         loss_ce = F.cross_entropy(src_logits.transpose(
             1, 2), target_classes, self.empty_weight)
@@ -545,8 +546,8 @@ class SetCriterion(nn.Module):
         src_masks_matcher = F.interpolate(src_masks_matcher, size=(t_h, t_w), mode="bilinear", align_corners=False).sigmoid(
         ).transpose(1, 0)  # torch.Size([12, 5, 200, 200]) -> 12 5
 
-        src_masks = (src_masks > 0.15).float() #
-        src_masks_matcher = (src_masks_matcher > 0.15).float()
+        #src_masks = (src_masks > 0.15).float() #
+        #src_masks_matcher = (src_masks_matcher > 0.15).float()
 
         plot_all(src_masks, src_masks_matcher, gt_masks, src_logits,
                  target_classes_o, save_name="train_prediction")
