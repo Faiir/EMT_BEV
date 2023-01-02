@@ -403,8 +403,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             self.logger.debug(
                 f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
         
-        shared_feat = self.task_feat_cropper["shared"](bev_feats)
-        task_feat = self.taskfeat_encoders["shared"]([shared_feat])
+        task_feat = self.task_feat_cropper["shared"](bev_feats)
+        #task_feat = self.taskfeat_encoders["shared"]([task_feat])
 
         # Deformable DETR 
         b,c,h,w = task_feat.shape

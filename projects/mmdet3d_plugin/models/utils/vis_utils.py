@@ -238,7 +238,16 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
             plt.imshow(color_instance_i)
             plt.axis('off')
             plt.show()
+            
+        values = instance_ids
+        colors = [instance_colours_dict[k] for k in instance_colours_dict]
+        color_name = "Instance_Colors"
 
+        # create a patch (proxy artist) for every color
+        patches = [mpatches.Patch(color=colors[i]/255, label="Instance {l}".format(
+            l=values[i])) for i in range(len(values))]
+        # put those patched as legend-handles into the legend
+        plt.legend(handles=patches)
         # create a patch (proxy artist) for every color
 
         # put those patched as legend-handles into the legend

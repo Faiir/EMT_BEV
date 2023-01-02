@@ -224,7 +224,7 @@ class BevEncode(nn.Module):
         # start = timer()
 
         feats = []
-        x_tmp = bev_feat_list[0]
+        x_tmp = bev_feat_list[0]  # torch.Size([1, 64, 200, 200])
         for lid, layer in enumerate(self.layers):
             x_tmp = layer(x_tmp)
             # x_tmp = checkpoint.checkpoint(layer,x_tmp)
@@ -239,9 +239,10 @@ class BevEncode(nn.Module):
                     x_tmp = x_tmp + bev_feat_from_img_view
                 else:
                     assert False
-
-        if self.bev_encoder_fpn_type == "lssfpn":
+        #torch.Size([1, 512, 25, 25])
+        if self.bev_encoder_fpn_type == "lssfpn": 
             # print(f"feats-1: {feats[-1].shape}, feats-3: {feats[-3].shape}")
+            # torch.Size([1, 128, 100, 100])
             res = self.up1(feats[-1], feats[-3])
             # print(f"res {res.shape}")
         elif self.bev_encoder_fpn_type == "fpnv1":
@@ -249,7 +250,7 @@ class BevEncode(nn.Module):
         else:
             assert False
 
-        res = self.up2(res)
+        res = self.up2(res)  # torch.Size([1, 64, 200, 200])
         # print(f"res2 {res.shape}")
         # torch.cuda.synchronize()
         # end = timer()

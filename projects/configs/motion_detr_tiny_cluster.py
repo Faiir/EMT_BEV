@@ -1,9 +1,9 @@
 _base_ = ["./motion_detr_singleframe_tiny_cluster.py"]
 
 receptive_field = 3
-future_frames = 4
+future_frames = 0#4
 future_discount = 0.95
-
+num_classes = 1  # 100 # 1
 model = dict(
     temporal_model=dict(
         type="Temporal3DConvModel",
@@ -42,15 +42,16 @@ model = dict(
             future_discount=future_discount,
             upsampler_type="V3",
             aux_loss=True,
+            do_sem_seg=True,
             matcher_config={
                 "type": "HungarianMatcherIFC",
                 "cost_class": 1,
                 "cost_dice": 3.0,
-                "num_classes": 100,
+                "num_classes": num_classes,
                 "n_future": future_frames + 1
             },
             criterion_config={
-                "num_classes": 100,
+                "num_classes": num_classes,
                 "weight_dict": {"loss_ce": 1, "loss_mask": 100.0,
                                 "loss_dice": 3.0},
                 "eos_coef": 0.1,

@@ -46,6 +46,7 @@ class Motion_DETR_MOT(BaseModule):
                 sample_ignore_mode="all_valid", # TODO
                 loss_weights=None,
                 upsampler_type="V3",
+                do_sem_seg = False,
                 matcher_config={
                      "cost_class": 1,
                      "cost_dice": 3.0,
@@ -77,7 +78,7 @@ class Motion_DETR_MOT(BaseModule):
         self.task_heads = nn.ModuleDict()
 
         matcher = build_assigner(matcher_config)
-
+        self.do_sem_seg = do_sem_seg
         self.num_feature_levels = num_feature_levels
         self.mask_stride = mask_stride
         self.match_stride = match_stride
@@ -236,6 +237,8 @@ class Motion_DETR_MOT(BaseModule):
             ids = ids[ids!=self.ignore_index]
             ids = ids[ids != 0]
             
+            
+            
             label_t_list = []
             for t in gt_instance[b]:
                 t_labels =t.unique()
@@ -258,7 +261,8 @@ class Motion_DETR_MOT(BaseModule):
                     gt_list.append(test_bool)
 
                     #     continue
-                    
+            if self.do_sem_seg:
+                ids = torch.ones_like(ids, device=ids.device)
             #! TODO -> how to deal with the 0 dimension 
 
             segmentation_labels = torch.stack(gt_list, dim=0)
@@ -455,7 +459,7 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
-        self.plot_prediction= True 
+        self.plot_prediction= False 
 
     def loss_labels(self, outputs, targets, indices, num_masks, log=True):
         """Classification loss (NLL)

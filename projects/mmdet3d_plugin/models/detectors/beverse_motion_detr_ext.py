@@ -71,7 +71,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         # image-view feature extraction
         imgs = img[0]
         #t_start = time.time()
-        B, S, N, C, imH, imW = imgs.shape
+        B, S, N, C, imH, imW = imgs.shape # 1 3/5 6 3 256 704 s = Receptive Field 
         imgs = imgs.view(B * S * N, C, imH, imW)
         #x = self.img_backbone(imgs)
         x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
@@ -101,7 +101,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
 
         # lifting with LSS
-        x = self.transformer([x] + img[1:])
+        x = self.transformer([x] + img[1:])  # torch.Size([1, 5, 64, 128, 128])
 
         #torch.cuda.synchronize()
         t_BEV = time.time()
@@ -112,7 +112,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         # x = self.temporal_model(x, future_egomotion=future_egomotion,
         #                         aug_transform=aug_transform, img_is_valid=img_is_valid)
         x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
-                                              aug_transform, img_is_valid)
+                                              aug_transform, img_is_valid)  # torch.Size([1, 64, 128, 128])
 
         torch.cuda.synchronize()
         t_temporal = time.time()

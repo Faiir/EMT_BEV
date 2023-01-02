@@ -254,7 +254,7 @@ sample = next(iter(data_loaders[0]))
 model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get('test_cfg'))
 #wrap_fp16_model(model)
 
-load_model = True 
+load_model = False 
 if load_model:
     cfg.checkpoint_config.meta = dict(
         mmdet_version=mmdet_version,
