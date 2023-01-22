@@ -24,7 +24,7 @@ pt_profiler = True
 
 def update_cfg(
     cfg,
-    n_future=3,
+    n_future=4,
     receptive_field=3,
     resize_lim=(0.38, 0.55),
     final_dim=(256, 704),
@@ -195,7 +195,7 @@ def perform_10_steps(cfg, p):
     )
 
     model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
-    wrap_fp16_model(model)
+    #wrap_fp16_model(model)
     model.cuda()
     model = MMDataParallel(model, device_ids=[0])
     iter_loader = iter(data_loader)
@@ -386,20 +386,24 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
+                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/future_frames_{c}",
+                    f"/content/drive/MyDrive/logs_thesis_final/logs_profiler/future_frames_{c}",
                     worker_name="worker0",
                 ),
                 record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
                 with_stack=False,
+                with_flops=True,
+                use_cuda=True
             ) as p:
                 try:
                     perform_10_steps(cfg, p)
                 except Exception as e:
                     logger.debug(e)
                     print(f"Experiment {c} failed with {e} - receptive field")
+                p.export_chrome_trace(
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/future_frames_{c}.txt")
         else:
             perform_10_steps(cfg, None)
 
@@ -454,20 +458,24 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
+                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/grid_config_{i}",
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/grid_config_{i}.txt",
                     worker_name="worker0",
                 ),
                 record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
                 with_stack=False,
+                with_flops=True,
+                use_cuda=True
             ) as p:
                 try:
                     perform_10_steps(cfg, p)
                 except Exception as e:
                     logger.debug(e)
                     print(f"Experiment {c} failed with {e} - final_dim")
+                p.export_chrome_trace(
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/grid_config_{i}.txt")
         else:
             perform_10_steps(cfg, None)
 
@@ -490,7 +498,7 @@ def main() -> None:
                     torch.profiler.ProfilerActivity.CPU,
                     torch.profiler.ProfilerActivity.CUDA,
                 ],
-                schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
+                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
                     f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
                     worker_name="worker0",
@@ -498,12 +506,17 @@ def main() -> None:
                 record_shapes=False,
                 profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
                 with_stack=False,
+                with_flops=True,
+                use_cuda=True
+                
             ) as p:
                 try:
                     perform_10_steps(cfg, p)
                 except Exception as e:
                     logger.debug(e)
                     print(f"Experiment {c} failed with {e} - final_dim")
+                p.export_chrome_trace(
+                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/size_logs_{c}")
         else:
             perform_10_steps(cfg, None)
 

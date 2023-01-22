@@ -11,6 +11,8 @@ from ...datasets.utils.warper import FeatureWarper
 from ..motion_modules import ResFuturePrediction, ResFuturePredictionV2
 from ._base_motion_head import BaseMotionHead
 
+from torch.profiler import record_function
+
 import pdb
 
 
@@ -64,9 +66,10 @@ class IterativeFlow(BaseMotionHead):
             present_state = bevfeats.unsqueeze(dim=1).contiguous()
 
             # sampling probabilistic distribution
-            sample, output_distribution = self.distribution_forward(
-                present_state, future_distribution_inputs, noise
-            )
+            with record_function("Sampling Distribution"):
+                sample, output_distribution = self.distribution_forward(
+                    present_state, future_distribution_inputs, noise
+                )
 
             b, _, _, h, w = present_state.shape
             hidden_state = present_state[:, 0]

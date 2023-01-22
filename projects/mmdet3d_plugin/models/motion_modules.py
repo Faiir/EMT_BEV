@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .basic_modules import Bottleneck, SpatialGRU, ConvBlock, GRUCell
-
+from torch.profiler import  record_function
 import pdb
 import copy
 
@@ -199,30 +199,32 @@ class ResFuturePrediction(torch.nn.Module):
         # x has shape (b, c_latent_dim, h, w), hidden_state (b, c, h, w)
         res = []
         current_state = hidden_state
-        for i in range(self.n_future):
+        with record_function("ResFuturePrediction"):
+            for i in range(self.n_future):
 
-            if self.flow_warp:
-                combine = torch.cat(
-                    (sample_distribution, current_state), dim=1)
-                flow = self.offset_pred(self.offset_conv(combine))
-                warp_state = warp_with_flow(current_state, flow=flow)
-                warp_state = torch.cat(
-                    (warp_state, sample_distribution), dim=1)
-            else:
-                warp_state = torch.cat(
-                    (sample_distribution, current_state), dim=1)
+                if self.flow_warp:
+                    with record_function("flow_warp"):
+                        combine = torch.cat(
+                            (sample_distribution, current_state), dim=1)
+                        flow = self.offset_pred(self.offset_conv(combine))
+                        warp_state = warp_with_flow(current_state, flow=flow)
+                        warp_state = torch.cat(
+                            (warp_state, sample_distribution), dim=1)
+                else:
+                    warp_state = torch.cat(
+                        (sample_distribution, current_state), dim=1)
+                with record_function("Conv_GRUs"):
+                    for gru_cell in self.gru_cells:
+                        warp_state = gru_cell(warp_state, state=current_state)
 
-            for gru_cell in self.gru_cells:
-                warp_state = gru_cell(warp_state, state=current_state)
+                warp_state = self.spatial_conv(warp_state)
+                res.append(warp_state)
 
-            warp_state = self.spatial_conv(warp_state)
-            res.append(warp_state)
-
-            # updating current states
-            if self.detach_state:
-                current_state = warp_state.detach()
-            else:
-                current_state = warp_state.clone()
+                # updating current states
+                if self.detach_state:
+                    current_state = warp_state.detach()
+                else:
+                    current_state = warp_state.clone()
 
         return torch.stack(res, dim=1)
 

@@ -10,7 +10,7 @@ import pdb
 import time
 
 from mmcv.runner import auto_fp16, force_fp32
-
+from torch.profiler import record_function
 
 @DETECTORS.register_module()
 class BEVerse(MVXTwoStageDetector):
@@ -58,8 +58,9 @@ class BEVerse(MVXTwoStageDetector):
 
         B, S, N, C, imH, imW = imgs.shape
         imgs = imgs.view(B * S * N, C, imH, imW)
-        #x = self.img_backbone(imgs)
-        x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
+        with record_function("img_backbone"):
+            x = self.img_backbone(imgs)
+        #x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
         for f in x:
             if torch.any(torch.isinf(f)):
                 print(f"Found inf / -inf in img_backbone")
@@ -71,7 +72,8 @@ class BEVerse(MVXTwoStageDetector):
         f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         if self.with_img_neck:
-            x = self.img_neck(x)
+            with record_function("img_neck"):
+                x = self.img_neck(x)
         print(
             f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
@@ -86,16 +88,18 @@ class BEVerse(MVXTwoStageDetector):
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
 
         # lifting with LSS
-        x = self.transformer([x] + img[1:])
+        with record_function("LSS"):
+            x = self.transformer([x] + img[1:])
 
         torch.cuda.synchronize()
         t_BEV = time.time()
 
         # temporal processing
-        # x = self.temporal_model(x, future_egomotion=future_egomotion,
-        #                         aug_transform=aug_transform, img_is_valid=img_is_valid)
-        x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
-                                              aug_transform, img_is_valid)
+        with record_function("temporal_model"):
+            x = self.temporal_model(x, future_egomotion=future_egomotion,
+                                    aug_transform=aug_transform, img_is_valid=img_is_valid)
+        # x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
+        #                                       aug_transform, img_is_valid)
 
 
         print(

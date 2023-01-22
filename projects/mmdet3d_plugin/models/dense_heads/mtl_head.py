@@ -9,6 +9,8 @@ from mmdet3d.models.builder import HEADS, build_loss
 from .bev_encoder import BevEncode
 from .map_head import BevFeatureSlicer
 from mmcv.runner import auto_fp16, force_fp32
+from torch.profiler import record_function
+
 
 import pdb
 
@@ -262,13 +264,20 @@ class MultiTaskHead(BaseModule):
             if task_name == "motion":
                 # if task_feat.isnan().sum() > 0:
                 #     print("task_feat nan")
-                
-                task_pred = self.task_decoders[task_name]([task_feat], targets=targets)
+                with record_function("MotionPredictionForward"):
+                    task_pred = self.task_decoders[task_name]([task_feat], targets=targets)
                 # self.logger.debug(
                 #     f"MTL-HEAD forward task_pred motion: {str(task_pred.shape)}"
                 # )
                 # if task_feat.isnan().sum() > 0:
                 #     print("task_feat nan")
+            elif task_name == "3dod":
+                with record_function("3dod"):
+                    task_pred = self.task_decoders[task_name]([task_feat])
+                
+            elif task_name == "map":
+                with record_function("Map"):
+                    task_pred = self.task_decoders[task_name]([task_feat])
             else:
                 task_pred = self.task_decoders[task_name]([task_feat])
                 # self.logger.debug(
