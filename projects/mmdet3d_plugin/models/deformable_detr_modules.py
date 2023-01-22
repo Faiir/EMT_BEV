@@ -2515,12 +2515,13 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
     Upsampling is done using a FPN approach
     """
 
-    def __init__(self, dim, fpn_dims, n_future=3, output_dict=None):
+    def __init__(self, dim, fpn_dims, n_future=3, block_future=False, output_dict=None):
         super().__init__()
 
         # inter_dims = [dim, context_dim // 2, context_dim // 4,
         #               context_dim // 8, context_dim // 16, context_dim // 64, context_dim // 128]
         self.n_future = n_future
+        self.block_future = block_future
         gn = 8
         T = self.n_future
         fpn_dims = fpn_dims
@@ -2562,8 +2563,10 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
             padding=[1, 0, 0],
             bias=False,
         )
-
-        self.convert_to_weight = MLP(dim, dim, dim*T, 2)
+        if self.block_future:
+            self.convert_to_weight = MLP(dim, dim, dim, 2)
+        else:
+            self.convert_to_weight = MLP(dim, dim, dim*T, 2)
 
         self.adapter1 = torch.nn.Conv2d(fpn_dims[0], dim, 1)
         self.adapter2 = torch.nn.Conv2d(fpn_dims[1], dim, 1)
@@ -2613,29 +2616,57 @@ class MaskHeadSmallConvIFC_V3(nn.Module):
             cur_fpn = self.adapter4(fpns[-4])
             x = cur_fpn + F.interpolate(x, size=cur_fpn.shape[-2:], mode="nearest")
 
-        T = self.n_future #5
-        H, W = x.shape[-2:]
-        B = x.shape[0]
+        if self.block_future:
+            T = self.n_future  # 5
+            H, W = x.shape[-2:]
+            B = x.shape[0]
 
-        # torch.Size([1, 128, 5, 50, 50])
-        x = x.unsqueeze(1).reshape(B, -1, T, H, W)
-        # D2+1 Module from Vov3D -> Basically replacing a 3D Convolution 
-        x = self.b1(x)
-        x = self.b2(x)
-        x = F.relu(x)
-        x = self.a(x).permute(0, 2, 1, 3, 4)
+            # torch.Size([1, 128, 5, 50, 50])
+            x = x.unsqueeze(1).reshape(B, -1, T, H, W)
+            # D2+1 Module from Vov3D -> Basically replacing a 3D Convolution
+            x = self.b1(x)
+            x = self.b2(x)
+            x = F.relu(x)
+            x = self.a(x).permute(0, 2, 1, 3, 4)
 
-        B, BT, C, H, W = x.shape
-        L, B, N, C = hs.shape  # torch.Size([1, 1, 300, 128]) TxBxNxC
+            B, BT, C, H, W = x.shape
+            L, B, N, C = hs.shape  # torch.Size([1, 1, 300, 128]) TxBxNxC
+            L = 1
+            w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
+            w = w.unsqueeze(1).reshape(B, T, L, N, -1)
+            # torch.Size([1, 5, 1, 300, 128])
+            # Unsure about the fusion across the batch dimension - meh IFC segmentation module afterwards
+            mask_logits = F.conv2d(x.reshape(1, B * BT*C, H, W),
+                                   w.reshape(B*T*L*N, C, 1, 1), groups=BT*B)
+            #torch.Size([1, 1500, 50, 50])
+            mask_logits = mask_logits.view(
+                B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
+            #torch.Size([1, 1, 300, 5, 50, 50])
 
-        w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
-        w = w.unsqueeze(1).reshape(B, T, L, N, -1)
-        # torch.Size([1, 5, 1, 300, 128])
-        # Unsure about the fusion across the batch dimension - meh IFC segmentation module afterwards
-        mask_logits = F.conv2d(x.reshape(1, B *BT*C, H, W),
-                            w.reshape(B*T*L*N, C, 1, 1), groups=BT*B)
-        #torch.Size([1, 1500, 50, 50])
-        mask_logits = mask_logits.view(
-            B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
-        #torch.Size([1, 1, 300, 5, 50, 50])
+        else:
+            T = self.n_future #5
+            H, W = x.shape[-2:]
+            B = x.shape[0]
+
+            # torch.Size([1, 128, 5, 50, 50])
+            x = x.unsqueeze(1).reshape(B, -1, T, H, W)
+            # D2+1 Module from Vov3D -> Basically replacing a 3D Convolution 
+            x = self.b1(x)
+            x = self.b2(x)
+            x = F.relu(x)
+            x = self.a(x).permute(0, 2, 1, 3, 4)
+
+            B, BT, C, H, W = x.shape
+            L, B, N, C = hs.shape  # torch.Size([1, 1, 300, 128]) TxBxNxC
+            
+            w = self.convert_to_weight(hs).permute(1, 0, 2, 3)
+            w = w.unsqueeze(1).reshape(B, T, L, N, -1)
+            # torch.Size([1, 5, 1, 300, 128])
+            # Unsure about the fusion across the batch dimension - meh IFC segmentation module afterwards
+            mask_logits = F.conv2d(x.reshape(1, B *BT*C, H, W),
+                                w.reshape(B*T*L*N, C, 1, 1), groups=BT*B)
+            #torch.Size([1, 1500, 50, 50])
+            mask_logits = mask_logits.view(
+                B, T, L, N, H, W).permute(2, 0, 3, 1, 4, 5)
+            #torch.Size([1, 1, 300, 5, 50, 50])
         return mask_logits

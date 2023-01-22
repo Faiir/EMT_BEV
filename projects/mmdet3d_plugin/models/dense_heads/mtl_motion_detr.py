@@ -94,8 +94,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.taskfeat_encoders = nn.ModuleDict()
         assert bev_encoder_type == "resnet18"
         self.return_intermediate_dec = return_intermediate_dec
-        if self.return_intermediate_dec:
-            self.aux_outputs = dec_layers
+        # if self.return_intermediate_dec:
+        #     self.aux_outputs = dec_layers
         # whether to use shared features
         self.shared_feature = shared_feature
         if self.shared_feature:
@@ -396,7 +396,8 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             self.logger.debug(f"MTL-HEAD foward Tasks: {str(task_feat.shape)}")
             # task-specific feature encoder
             map_feat = self.taskfeat_encoders["map"]([task_feat])
-            map_pred = self.task_decoders["map"]([map_feat])
+            map_pred = self.task_decoders["map"](
+                [map_feat])  # torch.Size([1, 4, 400, 400])
             predictions["map"] = map_pred
             
             

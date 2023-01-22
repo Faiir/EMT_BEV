@@ -71,12 +71,20 @@ motion_grid_conf = {
     "dbound": [1.0, 60.0, 1.0],
 }
 
+# map_grid_conf = {
+#     "xbound": [-30.0, 30.0, 0.15],
+#     "ybound": [-15.0, 15.0, 0.15],
+#     "zbound": [-10.0, 10.0, 20.0],
+#     "dbound": [1.0, 60.0, 1.0],
+# }
+
 map_grid_conf = {
-    "xbound": [-30.0, 30.0, 0.15],
-    "ybound": [-15.0, 15.0, 0.15],
+    "xbound": [-50.0, 50.0, 0.25],
+    "ybound": [-50.0, 50.0, 0.25],
     "zbound": [-10.0, 10.0, 20.0],
     "dbound": [1.0, 60.0, 1.0],
 }
+
 
 grid_conf = det_grid_conf
 
@@ -84,7 +92,7 @@ receptive_field = 1
 future_frames = 0
 future_discount = 1.0
 
-hidden_dim = 128
+hidden_dim = 256
 num_queries = 150
 num_feature_levels = 3
 
@@ -142,10 +150,10 @@ model = dict(
         out_channels_map=256,
         hidden_dim=hidden_dim,
         nheads=8,
-        enc_layers=3,
-        dec_layers=3,
-        dec_n_points=20,
-        enc_n_points=20,
+        enc_layers=5,
+        dec_layers=5,
+        dec_n_points=30,
+        enc_n_points=30,
         dim_feedforward=hidden_dim,
         dropout_transformer=0.1, 
         activation="relu",
@@ -154,7 +162,7 @@ model = dict(
         backbone="resnet18",
         position_embedding="sine",
         num_pos_feats=128,
-        return_intermediate_dec=False,
+        return_intermediate_dec=True,
         temporal_queries_activated=False, 
         flow_warp=False,
         grid_conf=grid_conf,
@@ -233,7 +241,6 @@ model = dict(
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,
-            dec_layers=3
 
         ),
     ),

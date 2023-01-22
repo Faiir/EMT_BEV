@@ -319,9 +319,9 @@ class MTLEgoNuScenesDataset(NuScenesDataset):
         # when the labels for future frames are not complete, skip the sample
         if self.filter_invalid_sample and input_dict['has_invalid_frame'] is True:
             return None
-
+        # dict_keys(['sample_idx', 'pts_filename', 'sweeps', 'timestamp', 'data_root', 'future_egomotions', 'has_invalid_frame', 'img_is_valid', 'img_info', 'lidar2ego_rots', 'lidar2ego_trans', 'ann_info', 'vectors'])
         self.pre_pipeline(input_dict)
-        example = self.pipeline(input_dict)
+        example = self.pipeline(input_dict) # dict_keys(['img_metas', 'img_inputs', 'gt_bboxes_3d', 'gt_labels_3d', 'semantic_indices', 'semantic_map', 'future_egomotions', 'aug_transform', 'img_is_valid', 'motion_segmentation', 'motion_instance', 'instance_centerness', 'instance_offset', 'instance_flow', 'has_invalid_frame'])
 
         if self.filter_empty_gt and (example is None or
                                      ~(example['gt_labels_3d']._data != -1).any()):

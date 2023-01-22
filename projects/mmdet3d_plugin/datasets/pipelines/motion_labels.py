@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import pdb
 
-from ...models.dense_heads.map_head import calculate_birds_eye_view_parameters
+from ...models.dense_heads.map_head import calculate_birds_eye_view_parameters  # type: ignore
 from mmdet.datasets.builder import PIPELINES
 from ..utils.instance import convert_instance_mask_to_center_and_offset_label, convert_instance_mask_to_center_and_offset_label_with_warper
 from ..utils.warper import FeatureWarper

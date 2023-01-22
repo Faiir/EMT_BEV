@@ -16,7 +16,7 @@ model = dict(
     pts_bbox_head=dict(
         task_enable={
             "3dod": False,
-            "map": False,
+            "map": True,
             "motion": True,
         },
         task_weights={
@@ -41,6 +41,8 @@ model = dict(
             n_future=future_frames,
             future_discount=future_discount,
             upsampler_type="V3",
+            dec_layers=5,  # future_frames +1
+            future_discount=future_discount,
             aux_loss=True,
             do_sem_seg=True,
             matcher_config={

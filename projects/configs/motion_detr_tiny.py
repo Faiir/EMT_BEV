@@ -1,7 +1,7 @@
 _base_ = ["./motion_detr_singleframe_tiny.py"]
 
 receptive_field = 3
-future_frames = 0#4
+future_frames = 4
 future_discount = 0.95
 num_classes = 1#100 # 1 
 model = dict(
@@ -16,7 +16,7 @@ model = dict(
     pts_bbox_head=dict(
         task_enable={
             "3dod": False,
-            "map": False,
+            "map": True,
             "motion": True,
         },
         task_weights={
@@ -39,9 +39,11 @@ model = dict(
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
+            block_future_prediction=True,
+            dec_layers=5,  # future_frames +1
             future_discount=future_discount,
             upsampler_type="V3",
-            aux_loss=True, 
+            aux_loss=False, 
             do_sem_seg=True,
             matcher_config={
                 "type": "HungarianMatcherIFC",

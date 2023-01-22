@@ -363,6 +363,7 @@ train_pipeline = [
             "pts_filename",
             "transformation_3d_flow",
             "img_info",
+            
         ),
     ),
 ]

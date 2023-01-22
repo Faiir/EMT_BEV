@@ -37,6 +37,7 @@ class Motion_DETR_MOT(BaseModule):
                 nheads=8,
                 use_topk=True,
                 aux_loss=True,
+                block_future_prediction = True,
                 ignore_index=255,
                 num_queries=300,
                 num_feature_levels=4,
@@ -73,7 +74,10 @@ class Motion_DETR_MOT(BaseModule):
         self.test_cfg = test_cfg
         self.receptive_field = receptive_field
         self.n_future = n_future +1
-
+        self.block_future_prediction = block_future_prediction
+        if block_future_prediction:
+            
+            assert self.n_future == dec_layers
 
         self.task_heads = nn.ModuleDict()
 
@@ -125,7 +129,7 @@ class Motion_DETR_MOT(BaseModule):
             if num_feature_levels == 3:
                 fpn_dims.pop(0)
             self.mask_head = MaskHeadSmallConvIFC_V3(
-                hidden_dim, fpn_dims, n_future=self.n_future)
+                hidden_dim, fpn_dims, n_future=self.n_future, block_future=block_future_prediction)
         self.project_convs = []
         
         fpn_dims.reverse()
@@ -159,10 +163,13 @@ class Motion_DETR_MOT(BaseModule):
         3. decode present & future states with the decoder heads
         """
         if self.aux_loss is None:
-            if hs.shape[0] > 1:
-                self.aux_loss = True
-            else:
+            if self.block_future_prediction:
                 self.aux_loss = False
+            else:
+                if hs.shape[0] > 1:
+                    self.aux_loss = True
+                else:
+                    self.aux_loss = False
 
 
         input_projections = []
@@ -191,7 +198,7 @@ class Motion_DETR_MOT(BaseModule):
 
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_masks)#TxBxQxC
-
+        
         return out
 
     def init_weights(self):
