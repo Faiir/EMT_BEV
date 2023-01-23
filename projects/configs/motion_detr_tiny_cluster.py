@@ -39,18 +39,18 @@ model = dict(
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
-            future_discount=future_discount,
-            upsampler_type="V3",
+            block_future_prediction=True,
             dec_layers=5,  # future_frames +1
             future_discount=future_discount,
-            aux_loss=True,
+            upsampler_type="V3",
+            aux_loss=False, 
             do_sem_seg=True,
             matcher_config={
                 "type": "HungarianMatcherIFC",
                 "cost_class": 1,
                 "cost_dice": 3.0,
                 "num_classes": num_classes,
-                "n_future": future_frames + 1
+                "n_future": future_frames +1 
             },
             criterion_config={
                 "num_classes": num_classes,
