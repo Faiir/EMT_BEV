@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.utils.benchmark as benchmark
 from custome_logger import setup_custom_logger
 import logging
+from pathlib import Path
+
 
 logger = setup_custom_logger()
 logger.debug("Profiler")
@@ -124,7 +126,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1):
-    cfg_path = r"/content/EMT_BEV/projects/configs"
+    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs" #r"/content/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -184,7 +186,7 @@ def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1
 
 def perform_10_steps(cfg, p):
     samples_per_gpu = 1
-
+    cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
         dataset,
@@ -225,8 +227,8 @@ def perform_10_steps(cfg, p):
                 motion_targets=motion_distribution_targets,
                 img_is_valid=sample["img_is_valid"][0],
             )
-        if pt_profiler:
-            p.step()
+        
+        p.step()
 
 
 def main() -> None:
@@ -234,7 +236,13 @@ def main() -> None:
     print("IterativeFlow")
     logger = logging.getLogger("timelogger")
     # Define different settings to test
-
+    if Path("/content/drive/MyDrive/").exists():
+        base_path = Path(
+            r"/content/drive/MyDrive/logs_thesis_final/logs_profiler/")
+    elif Path("/home/niklas/ETM_BEV/BEVerse/logs/").exists():
+        base_path = Path(r"/home/niklas/ETM_BEV/BEVerse/logs/benchmark/")
+    else:
+        raise NotImplementedError
     # img backbones
 
     resize_lims = [
@@ -249,8 +257,8 @@ def main() -> None:
     backbones = [
         "beverse_tiny_org.py",
         "beverse_tiny_org.py",
-        "beverse_small.py",
-        "beverse_small.py",
+        "beverse_tiny_org.py",  # "beverse_small.py",
+        "beverse_tiny_org.py",  # "beverse_small.py",
     ]
 
     # future frames -> tiny settings
@@ -380,32 +388,32 @@ def main() -> None:
         cfg["future_frames"] = future_frames
         cfg["receptive_field"] = receptive_field
 
-        if pt_profiler:
-            with torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis_final/logs_profiler/future_frames_{c}",
-                    worker_name="worker0",
-                ),
-                record_shapes=False,
-                profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=False,
-                with_flops=True,
-                use_cuda=True
-            ) as p:
-                try:
-                    perform_10_steps(cfg, p)
-                except Exception as e:
-                    logger.debug(e)
-                    print(f"Experiment {c} failed with {e} - receptive field")
-                p.export_chrome_trace(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/future_frames_{c}.txt")
-        else:
-            perform_10_steps(cfg, None)
+        
+        with torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                str(base_path /f"future_frames_{c}"),
+                worker_name="worker0",
+            ),
+            record_shapes=False,
+            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            with_stack=False,
+            with_flops=True,
+            use_cuda=True
+        ) as p:
+            try:
+                perform_10_steps(cfg, p)
+                
+                print("Future frames done")
+            except Exception as e:
+                logger.debug(e)
+                print(f"Experiment {c} failed with {e} - receptive field")
+            p.export_chrome_trace(
+                str(base_path/f"/logs_profiler_chrome/future_frames_{c}.txt"))
 
         logger.debug(
             "******" * 6
@@ -452,32 +460,33 @@ def main() -> None:
         cfg["motion_grid_conf"] = motion_grid_conf
         cfg["map_grid_conf"] = map_grid_conf
         cfg["grid_conf"] = det_grid_conf
-        if pt_profiler:
-            with torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/grid_config_{i}.txt",
-                    worker_name="worker0",
-                ),
-                record_shapes=False,
-                profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=False,
-                with_flops=True,
-                use_cuda=True
-            ) as p:
-                try:
-                    perform_10_steps(cfg, p)
-                except Exception as e:
-                    logger.debug(e)
-                    print(f"Experiment {c} failed with {e} - final_dim")
-                p.export_chrome_trace(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/grid_config_{i}.txt")
-        else:
-            perform_10_steps(cfg, None)
+        
+        with torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                
+                str(base_path /f"grid_config_{i}.txt"),
+                worker_name="worker0",
+            ),
+            record_shapes=False,
+            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            with_stack=False,
+            with_flops=True,
+            use_cuda=True
+        ) as p:
+            try:
+                perform_10_steps(cfg, p)
+                print("Grid done")
+            except Exception as e:
+                logger.debug(e)
+                print(f"Experiment {c} failed with {e} - final_dim")
+            p.export_chrome_trace(
+                str(base_path/f"logs_profiler_chrome/grid_config_{i}.txt"))
+
 
         logger.debug(
             "******" * 6 + " det_grid_conf " + str(det_grid_conf) + "******" * 6
@@ -492,33 +501,33 @@ def main() -> None:
         cfg["data_aug_conf"]["resize_lim"] = resize_lim
         cfg["data_aug_conf"]["final_dim"] = final_dims
 
-        if pt_profiler:
-            with torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler/size_logs_{c}",
-                    worker_name="worker0",
-                ),
-                record_shapes=False,
-                profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-                with_stack=False,
-                with_flops=True,
-                use_cuda=True
-                
-            ) as p:
-                try:
-                    perform_10_steps(cfg, p)
-                except Exception as e:
-                    logger.debug(e)
-                    print(f"Experiment {c} failed with {e} - final_dim")
-                p.export_chrome_trace(
-                    f"/content/drive/MyDrive/logs_thesis/logs_profiler_chrome/size_logs_{c}")
-        else:
-            perform_10_steps(cfg, None)
+        
+        with torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                str(base_path/f"size_logs_{c}"),
+                worker_name="worker0",
+            ),
+            record_shapes=False,
+            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            with_stack=False,
+            with_flops=True,
+            use_cuda=True
+            
+        ) as p:
+            try:
+                perform_10_steps(cfg, p)
+                print("Image Size done")
+            except Exception as e:
+                logger.debug(e)
+                print(f"Experiment {c} failed with {e} - final_dim")
+            p.export_chrome_trace(
+                str(base_path/f"/logs_profiler_chrome/size_logs_{c}"))
+
 
         logger.debug(
             "******" * 6

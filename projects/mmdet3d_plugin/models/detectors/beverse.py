@@ -68,14 +68,14 @@ class BEVerse(MVXTwoStageDetector):
                 print("img_backbone nan")
         
 
-        print(
-        f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # print(
+        # f"Memory allcoated after backbone : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         if self.with_img_neck:
             with record_function("img_neck"):
                 x = self.img_neck(x)
-        print(
-            f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # print(
+        #     f"Memory allcoated after neckk : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         if isinstance(x, tuple):
             x_list = []
@@ -102,8 +102,8 @@ class BEVerse(MVXTwoStageDetector):
         #                                       aug_transform, img_is_valid)
 
 
-        print(
-            f"Memory allcoated after temporal_model : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+        # print(
+        #     f"Memory allcoated after temporal_model : {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
 
         torch.cuda.synchronize()
         t_temporal = time.time()

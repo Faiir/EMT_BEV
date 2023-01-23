@@ -415,7 +415,7 @@ def make_instance_id_temporally_consistent(
         )
     # print(f"consistent_instance_seg {consistent_instance_seg.shape}")
     consistent_instance_seg = torch.stack(consistent_instance_seg).unsqueeze(0)
-    print(f"consistent_instance_seg {consistent_instance_seg.shape}")
+    #print(f"consistent_instance_seg {consistent_instance_seg.shape}")
     return consistent_instance_seg
 
 
@@ -425,13 +425,13 @@ def predict_instance_segmentation_and_trajectories(
     make_consistent=True,
     vehicles_id=1,
 ):
-    print("predict_instance_segmentation_and_trajectories")
+    #print("predict_instance_segmentation_and_trajectories")
     preds = output["segmentation"].detach()
-    print(f"preds seg {preds.shape}")
+    #print(f"preds seg {preds.shape}")
     preds = torch.argmax(preds, dim=2, keepdims=True)
-    print(f"preds seg argmax {preds.shape}")
+    #print(f"preds seg argmax {preds.shape}")
     foreground_masks = preds.squeeze(2) == vehicles_id
-    print(f"foreground_masksx {foreground_masks.shape}")
+    #print(f"foreground_masksx {foreground_masks.shape}")
 
     batch_size, seq_len = preds.shape[:2]
     pred_inst = []
@@ -443,7 +443,7 @@ def predict_instance_segmentation_and_trajectories(
                 output["instance_offset"][b, t].detach(),
                 foreground_masks[b, t].detach(),
             )
-            print(f"pred_instance_t {pred_instance_t.shape}, centers {_.shape}")
+            #print(f"pred_instance_t {pred_instance_t.shape}, centers {_.shape}")
             pred_inst_batch.append(pred_instance_t)
         pred_inst.append(torch.stack(pred_inst_batch, dim=0))
 
