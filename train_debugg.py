@@ -332,7 +332,7 @@ logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = "./"
+cfg.work_dir = "/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
 meta = dict()
 # log env info
 env_info_dict = collect_env()

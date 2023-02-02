@@ -262,15 +262,15 @@ def main() -> None:
     ]
 
     # future frames -> tiny settings
-    future_frames_list = [4, 4, 4, 4, 5, 7, 10]
+    future_frames_list = [4,5, 6, 7, 8, 9, 10]
     receptive_field_list = [
         3,
-        5,
-        8,
-        13,
-        4,
-        6,
-        9,
+        3,
+        3,
+        33,
+        3,
+        3,
+        3,
     ]
 
     # grid_size = (
@@ -424,7 +424,7 @@ def main() -> None:
             + "******" * 6
         )
     logger.debug("*******" * 12)
-
+    torch.cuda.empty_cache()
     for i, d in enumerate(map_grid_confs["dbound"]):
         det_grid_conf["xbound"] = det_grid_confs["xbound"][i]
         det_grid_conf["ybound"] = det_grid_confs["ybound"][i]
@@ -469,7 +469,7 @@ def main() -> None:
             schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(
                 
-                str(base_path /f"grid_config_{i}.txt"),
+                str(base_path /f"grid_config_{i}"),
                 worker_name="worker0",
             ),
             record_shapes=False,

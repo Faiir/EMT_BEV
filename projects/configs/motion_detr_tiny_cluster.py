@@ -4,6 +4,9 @@ receptive_field = 3
 future_frames = 0#4
 future_discount = 0.95
 num_classes = 1  # 100 # 1
+do_sem_seg = True
+block_future_prediction = False
+
 model = dict(
     temporal_model=dict(
         type="Temporal3DConvModel",
@@ -39,12 +42,12 @@ model = dict(
             #class_weights=[1.0, 2.0],
             receptive_field=receptive_field,
             n_future=future_frames,
-            block_future_prediction=True,
+            block_future_prediction=block_future_prediction,
             dec_layers=5,  # future_frames +1
             future_discount=future_discount,
             upsampler_type="V3",
             aux_loss=False, 
-            do_sem_seg=True,
+            do_sem_seg=do_sem_seg,
             matcher_config={
                 "type": "HungarianMatcherIFC",
                 "cost_class": 1,

@@ -223,10 +223,10 @@ map_grid_conf = {
 point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg_filename = "beverse_tiny_org"
-cfg = import_modules_load_config(cfg_file="beverse_tiny_org.py")
+cfg_filename = "motion_detr_tiny"
+cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 
-
+experiment_type = "segmentation"
 
 # cfg = update_cfg(
 #     cfg,
@@ -333,7 +333,7 @@ logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = "./"
+cfg.work_dir = f"/home/kraussn/EMT_BEV/logs/logs_{experiment_type}"
 meta = dict()
 # log env info
 env_info_dict = collect_env()
