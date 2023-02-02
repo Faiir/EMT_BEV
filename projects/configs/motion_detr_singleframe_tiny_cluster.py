@@ -97,6 +97,9 @@ num_feature_levels = 3
 enc_layers = 6
 dec_layers = 6
 return_intermediate_dec = False
+block_future_prediction = False 
+
+
 
 voxel_size = [0.1, 0.1, 0.2]
 model = dict(
@@ -165,6 +168,7 @@ model = dict(
         position_embedding="sine",
         num_pos_feats=128,
         return_intermediate_dec=return_intermediate_dec,
+        block_future_prediction=block_future_prediction,
         temporal_queries_activated=False,
         flow_warp=False,
         grid_conf=grid_conf,
@@ -240,7 +244,9 @@ model = dict(
             nheads=8,
             num_queries=num_queries,
             grid_conf=motion_grid_conf,
+            dec_layers=dec_layers,  # future_frames +1
             #class_weights=[1.0, 2.0],
+            block_future_prediction=block_future_prediction,
             receptive_field=receptive_field,
             n_future=future_frames,
             future_discount=future_discount,

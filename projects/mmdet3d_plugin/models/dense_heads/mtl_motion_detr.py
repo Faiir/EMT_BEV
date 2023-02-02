@@ -54,6 +54,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         position_embedding="sine",
         num_pos_feats=128,
         return_intermediate_dec= True, 
+        block_future_prediction= False,
         #in_channels=64,
         hidden_dim=512,
         nheads=8, 
@@ -94,6 +95,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         self.taskfeat_encoders = nn.ModuleDict()
         assert bev_encoder_type == "resnet18"
         self.return_intermediate_dec = return_intermediate_dec
+        self.block_future_prediction = block_future_prediction
         # if self.return_intermediate_dec:
         #     self.aux_outputs = dec_layers
         # whether to use shared features
@@ -252,7 +254,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             cardi = task_loss_dict["cardinality_error"]
             class_error = task_loss_dict["class_error"]
             task_loss_summation = task_loss_summation - cardi - class_error
-            if self.return_intermediate_dec:
+            if self.return_intermediate_dec and not self.block_future_prediction:
                 for i in range(self.aux_outputs):
                     cardi_key = "cardinality_error" + f'_{i+1}'
                     class_key = "class_error" + f'_{i+1}'
