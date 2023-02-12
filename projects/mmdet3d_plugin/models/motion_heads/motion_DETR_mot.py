@@ -25,6 +25,24 @@ import pdb
 from mmcv.runner import BaseModule
 
 
+def linidx_take(val_arr, z_indices):
+
+    # Get number of columns and rows in values array
+    _, nC, nR = val_arr.shape
+
+    # Get linear indices and thus extract elements with np.take
+    idx = nC*nR*z_indices + nR * \
+        torch.arange(nR, device=val_arr.device)[
+            :, None] + torch.arange(nC, device=val_arr.device)
+    val_arr_ravel_shape = val_arr.ravel().shape
+    bool_array = torch.zeros(
+        val_arr_ravel_shape, dtype=bool, device=val_arr.device)
+    bool_array[idx.ravel()] = True
+    bool_array = bool_array.reshape(val_arr.shape).float()
+    res = val_arr * bool_array
+    # torch.take(val_arr, idx)  # Or val_arr.ravel()[idx]
+    return res
+
 @HEADS.register_module()
 class Motion_DETR_MOT(BaseModule):
     def __init__(self ,
@@ -176,8 +194,7 @@ class Motion_DETR_MOT(BaseModule):
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
-        outputs_masks = torch.utils.checkpoint.checkpoint(
-            self.mask_head, seg_memory, input_projections, hs)
+        outputs_masks = self.mask_head(seg_memory, input_projections, hs)
         # torch.Size([1, 1, 300, 5, 50, 50])
 
         # outputs_masks = self.mask_head(
@@ -189,8 +206,7 @@ class Motion_DETR_MOT(BaseModule):
 
         # # torch.Size([6, 5, 1, 300, 101])
         # outputs_class = torch.stack(outputs_class, dim=1)
-        outputs_class = torch.utils.checkpoint.checkpoint(
-            self.class_mlp, hs)  # torch.Size([1, 1, 300, 101])
+        outputs_class = self.class_mlp(hs)  # torch.Size([1, 1, 300, 101])
         #outputs_class = self.class_mlp(hs)
 
         out = {'pred_logits': outputs_class[-1]} # TxBxQxC
@@ -317,7 +333,7 @@ class Motion_DETR_MOT(BaseModule):
 
             # For each mask we assign the best class or the second best if the best on is `no_object`.
             _idx = self.num_classes + 1
-            mask_cls = F.softmax(mask_cls, dim=-1)[:, :, :_idx]
+            mask_cls = F.softmax(mask_cls, dim=-1)[:, :_idx]
             # torch.Size([1, 101]) # torch.Size([1, 101])
             scores, labels = mask_cls.max(-1)
 
@@ -331,9 +347,27 @@ class Motion_DETR_MOT(BaseModule):
 
                 result_dict["scores"] = scores_per_clip
                 result_dict["pred_classes"] = labels_per_clip
-                result_dict["scores"] = scores_per_clip
                 
-                
+                temporal_instances = mask_per_clip
+                temporal_instances = temporal_instances[valid].transpose(
+                    1, 0)  # time dimension first
+
+                for t in range(5):  # T x V x H x W # Find max per pixel
+                    z_indices = torch.argmax(temporal_instances[t], dim=0)
+                    temporal_instances[t] = linidx_take(
+                        temporal_instances[t], z_indices)
+
+                temporal_instances = temporal_instances.transpose(
+                    1, 0)  # Detection dimension fist again
+                temporal_instances = (temporal_instances > 0.05).float()
+
+                for c, i in enumerate(labels):
+                    temporal_instances[c] = temporal_instances[c] * i
+                # torch.Size([29, 5, 200, 200])
+                temporal_instances = temporal_instances.sum(0)  # .transpose(1, 0)
+                result_dict["mask_per_clip"] = temporal_instances
+
+
         results = "todp"
         # results = Instances(image_size)
         # results.scores = scores

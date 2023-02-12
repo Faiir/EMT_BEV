@@ -6,7 +6,7 @@ handlers:
   file:
     class: logging.handlers.RotatingFileHandler
     encoding: utf8
-    filename: /home/niklas/ETM_BEV/BEVerse/logs/local_logs/log01-23-13:07.log
+    filename: /home/niklas/ETM_BEV/BEVerse/logs/local_logs/log02-12-22:52.log
     formatter: module_func
     level: DEBUG
     maxBytes: 10485760

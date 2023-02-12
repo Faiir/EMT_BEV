@@ -233,7 +233,7 @@ def perform_10_steps(cfg, p):
 
 def main() -> None:
     device = torch.device("cuda:0")
-    print("IterativeFlow")
+    
     logger = logging.getLogger("timelogger")
     # Define different settings to test
     if Path("/content/drive/MyDrive/").exists():

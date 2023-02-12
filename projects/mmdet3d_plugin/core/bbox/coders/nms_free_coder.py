@@ -41,7 +41,7 @@ class NMSFreeCoder(BaseBBoxCoder):
         self.max_num = max_num
         self.score_threshold = score_threshold
         self.num_classes = num_classes
-        print("NMSFreeCoder")
+        
     def encode(self):
         pass
 

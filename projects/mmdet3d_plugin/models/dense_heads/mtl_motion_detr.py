@@ -1,3 +1,4 @@
+from torch.profiler import record_function
 import logging
 import torch
 import torch.nn as nn
@@ -381,6 +382,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
         return predictions
 
+
     def forward(self, bev_feats, targets=None):
         if self.shared_feature:
             return self.forward_with_shared_features(bev_feats, targets)
@@ -405,84 +407,84 @@ class MultiTaskHead_Motion_DETR(BaseModule):
             
             self.logger.debug(
                 f"MTL-HEAD forward Tasks2: {str(task_feat.shape)}")
-        
-        task_feat = self.task_feat_cropper["shared"](bev_feats)
-        #task_feat = self.taskfeat_encoders["shared"]([task_feat])
+        with record_function("MOTION Prediction Total"):
+            task_feat = self.task_feat_cropper["shared"](bev_feats)
+            #task_feat = self.taskfeat_encoders["shared"]([task_feat])
 
-        # Deformable DETR 
-        b,c,h,w = task_feat.shape
-        task_mask = mask = torch.zeros(
-            (b, h, w), dtype=torch.bool, device=task_feat.device)
-        
-        features, pos = torch.utils.checkpoint.checkpoint(
-            self.backbone, task_feat, task_mask)
-        #features, pos = self.backbone(task_feat, task_mask)
-        # for f in features:
-        #     for n in f:
-        #         if n.isnan().sum() > 0:
-        #             print("features")
-        # for p in pos:
-        #     if p.isnan().sum() > 0:
-        #         print("features")
-        srcs = []
-        masks = []
-        for l, feat in enumerate(features):
-            src, mask = feat
-            srcs.append(self.input_proj[l](src))
-            masks.append(mask)
-            assert mask is not None
-        if self.num_feature_levels > len(srcs):
-            _len_srcs = len(srcs)
-            for l in range(_len_srcs, self.num_feature_levels):
-                if l == _len_srcs:
-                    src = self.input_proj[l](features[-1][0])  # .tensors)
-                else:
-                    src = self.input_proj[l](srcs[-1])
-                m = task_mask
-                mask = F.interpolate(
-                    m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
-                pos_l = self.backbone[1](src, mask).to(src.dtype)
-                srcs.append(src)
-                masks.append(mask)
-                pos.append(pos_l)
+            # Deformable DETR 
+            b,c,h,w = task_feat.shape
+            task_mask = mask = torch.zeros(
+                (b, h, w), dtype=torch.bool, device=task_feat.device)
+            
+            features, pos = self.backbone( task_feat, task_mask)
+            with record_function("Trans"):
+                #features, pos = self.backbone(task_feat, task_mask)
+                # for f in features:
+                #     for n in f:
+                #         if n.isnan().sum() > 0:
+                #             print("features")
+                # for p in pos:
+                #     if p.isnan().sum() > 0:
+                #         print("features")
+                srcs = []
+                masks = []
+                for l, feat in enumerate(features):
+                    src, mask = feat
+                    srcs.append(self.input_proj[l](src))
+                    masks.append(mask)
+                    assert mask is not None
+                if self.num_feature_levels > len(srcs):
+                    _len_srcs = len(srcs)
+                    for l in range(_len_srcs, self.num_feature_levels):
+                        if l == _len_srcs:
+                            src = self.input_proj[l](features[-1][0])  # .tensors)
+                        else:
+                            src = self.input_proj[l](srcs[-1])
+                        m = task_mask
+                        mask = F.interpolate(
+                            m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
+                        pos_l = self.backbone[1](src, mask).to(src.dtype)
+                        srcs.append(src)
+                        masks.append(mask)
+                        pos.append(pos_l)
 
-        query_embeds = None
-        if not self.two_stage:
-            query_embeds = self.query_embed.weight
-            if self.temporal_queries_activated: #TODO FIX this 
-                if self.current_query is None:
-                    self.temporal_query_projection()
+                query_embeds = None
+                if not self.two_stage:
+                    query_embeds = self.query_embed.weight
+                    if self.temporal_queries_activated: #TODO FIX this 
+                        if self.current_query is None:
+                            self.temporal_query_projection()
 
 
 
-        # print(f"Memory allcoated before transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
-        
-        # hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
-        #     srcs, masks, pos, query_embeds)
-        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = torch.utils.checkpoint.checkpoint(
-            self.transformer, srcs, masks, pos, query_embeds)
-        # print(
-        #     f"Memory allcoated after transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
-        # if hs.isnan().sum() > 0 or hs.sum() == 0.0:
-        #     print("hs")
-        #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
-        if self.det_enabled:
-            dod_pred = self.task_decoders["3dod"](
-                    hs,init_reference)
-            predictions["3dod"] = dod_pred
-        
-
-        if self.motion_enabled:
-            motion_pred = self.task_decoders["motion"](
-                hs, init_reference, seg_memory, seg_mask, features)
-            predictions["motion"] = motion_pred
+                # print(f"Memory allcoated before transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+                
+                # hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
+                #     srcs, masks, pos, query_embeds)
+                
+                hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(srcs, masks, pos, query_embeds)
             # print(
-            #     f"Memory allcoated after motion head: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
-        
-        
-        
-        
-        return predictions
+            #     f"Memory allcoated after transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+            # if hs.isnan().sum() > 0 or hs.sum() == 0.0:
+            #     print("hs")
+            #dict keys:  'all_cls_scores'  'all_bbox_preds'  'enc_cls_scores' 'enc_bbox_preds'
+            if self.det_enabled:
+                dod_pred = self.task_decoders["3dod"](
+                        hs,init_reference)
+                predictions["3dod"] = dod_pred
+            
+
+            if self.motion_enabled:
+                motion_pred = self.task_decoders["motion"](
+                    hs, init_reference, seg_memory, seg_mask, features)
+                predictions["motion"] = motion_pred
+                # print(
+                #     f"Memory allcoated after motion head: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
+            
+            
+            
+            
+            return predictions
 
     @force_fp32(apply_to=('preds_dicts'))
     def get_bboxes(self, preds_dicts, img_metas, rescale=False):

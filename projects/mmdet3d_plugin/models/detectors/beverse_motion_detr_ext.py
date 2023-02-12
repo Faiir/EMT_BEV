@@ -337,9 +337,16 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
 
         if not isinstance(img_inputs[0][0], list):
             img_inputs = [img_inputs] if img_inputs is None else img_inputs
+            mtl_targets = kwargs.get("motion_targets")
             return self.simple_test(
-                img_metas[0], img_inputs[0], future_egomotions[0], **kwargs
-            )
+                img_metas[0], img_inputs[0], future_egomotions[0], 
+                mtl_targets.get("motion_segmentation"), 
+                mtl_targets.get("motion_instance"),
+                mtl_targets.get("instance_centerness"),
+                mtl_targets.get("instance_offset"),
+                mtl_targets.get("instance_flow"),
+                mtl_targets.get("aug_transform"),
+                kwargs.get("img_is_valid"))
         else:
             return self.aug_test(
                 img_metas[0], img_inputs[0], future_egomotions[0], **kwargs
@@ -350,14 +357,21 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         img_metas,
         img=None,
         future_egomotions=None,
-        rescale=False,
-        motion_targets=None,
+        motion_segmentation=None,
+        motion_instance=None,
+        instance_centerness= None,
+        instance_offset=None ,
+        instance_flow=None,
+        
+        aug_transform=None,
         img_is_valid=None,
+        **kwargs
     ):
         """Test function without augmentaiton."""
         # torch.cuda.synchronize()
         # # t0 = time.time()
         # start = timer()
+       
 
         img_feats = self.extract_img_feat(
             img=img,
@@ -377,9 +391,9 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         # )  # str(t_Extract_img_feat_total)        )
 
         #start = timer()
-        predictions = self.simple_test_pts(
-            img_feats, img_metas, rescale=rescale, motion_targets=motion_targets
-        )
+        # predictions = self.simple_test_pts(
+        #     img_feats, img_metas, rescale=rescale, motion_targets=motion_targets
+        # )
 
         # torch.cuda.synchronize()
         # end = timer()
@@ -390,14 +404,23 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         #     "BEVerse Box t_predictions " + "{:.2f}".format(t_predictions)
         # )  # str(t_predictions))
 
-        if "bbox_results" in predictions:
-            bbox_list = [dict() for i in range(len(img_metas))]
-            for result_dict, pts_bbox in zip(bbox_list, predictions["bbox_results"]):
-                result_dict["pts_bbox"] = pts_bbox
-            predictions["bbox_results"] = bbox_list
+        mtl_targets = {
+            # for detection
+            # for motion prediction
+            "motion_segmentation": motion_segmentation,
+            "motion_instance": motion_instance,
+            #"instance_centerness": instance_centerness,
+            #"instance_offset": instance_offset,
+            "instance_flow": instance_flow,
+            "future_egomotion": future_egomotions,
+            # for bev_augmentation
+            "aug_transform": aug_transform,
+            "img_is_valid": img_is_valid,
+        }
 
-        
-        return predictions
+        loss_dict = self.forward_pts_train(img_feats, img_metas, mtl_targets)
+
+        return loss_dict
 
     def simple_test_pts(self, x, img_metas, rescale=False, motion_targets=None):
         """Test function of point cloud branch."""
