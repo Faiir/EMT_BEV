@@ -125,15 +125,14 @@ def update_cfg(
     return cfg
 
 
-def import_modules_load_config(cfg_file="motion_detr_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs" #r"/content/EMT_BEV/projects/configs"
+def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1):
+    cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
-
+    print(f"loading {cfg_path}")
     cfg = Config.fromfile(cfg_path)
 
     # if args.cfg_options is not None:
     #     cfg.merge_from_dict(args.cfg_options)
-    # import modules from string list.
     if cfg.get("custom_imports", None):
         from mmcv.utils import import_modules_from_strings
 
@@ -186,7 +185,7 @@ def import_modules_load_config(cfg_file="motion_detr_tiny.py", samples_per_gpu=1
 
 def perform_10_steps(cfg, p):
     samples_per_gpu = 1
-    cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    cfg.data.test["data_root"] = '/home/kraussn/EMT_BEV/data/nuscenes'
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
         dataset,
@@ -202,7 +201,7 @@ def perform_10_steps(cfg, p):
     model = MMDataParallel(model, device_ids=[0])
     iter_loader = iter(data_loader)
     samples = []
-    for i in range(10): 
+    for i in range(10):
         samples.append(next(iter_loader))
 
     for sample in samples:
@@ -236,11 +235,11 @@ def main() -> None:
     print("IterativeFlow")
     logger = logging.getLogger("timelogger")
     # Define different settings to test
-    if Path("/content/drive/MyDrive/").exists():
+    if Path("/home/kraussn/EMT_BEV/logs").exists():
         base_path = Path(
-            r"/content/drive/MyDrive/logs_thesis_final/logs_profiler/")
+            r"/home/kraussn/EMT_BEV/logs/logs_profiler2/")
     elif Path("/home/niklas/ETM_BEV/BEVerse/logs/").exists():
-        base_path = Path(r"/home/niklas/ETM_BEV/BEVerse/logs/benchmark_test/")
+        base_path = Path(r"/home/niklas/ETM_BEV/BEVerse/logs/benchmark/")
     else:
         raise NotImplementedError
     # img backbones
@@ -255,10 +254,10 @@ def main() -> None:
     final_dims = [(224, 480), (256, 704), (512, 1408), (900, 1600)]
 
     backbones = [
-        "motion_detr_tiny.py",
-        "motion_detr_tiny.py",
-        "motion_detr_tiny.py",  # "beverse_small.py",
-        "motion_detr_tiny.py",  # "beverse_small.py",
+        "beverse_tiny_org.py",
+        "beverse_tiny_org.py",
+        "beverse_tiny_org.py",  # "beverse_small.py",
+        "beverse_tiny_org.py",  # "beverse_small.py",
     ]
 
     # future frames -> tiny settings
@@ -376,54 +375,54 @@ def main() -> None:
         "zbound": [-10.0, 10.0, 20.0],
         "dbound": [1.0, 60.0, 1.0],
     }
-    grid_confs = (det_grid_conf, motion_grid_conf, map_grid_conf)
+    # grid_confs = (det_grid_conf, motion_grid_conf, map_grid_conf)
 
-    #First test settings differently and then select interesting combinations based on findings
+    # First test settings differently and then select interesting combinations based on findings
 
-    # for c, (future_frames, receptive_field) in enumerate(
-    #     zip(future_frames_list, receptive_field_list)
-    # ):
-    #     cfg = import_modules_load_config()
-    #     cfg = update_cfg(cfg, n_future=future_frames, receptive_field=receptive_field)
-    #     cfg["future_frames"] = future_frames
-    #     cfg["receptive_field"] = receptive_field
+    for c, (future_frames, receptive_field) in enumerate(
+        zip(future_frames_list, receptive_field_list)
+    ):
+        cfg = import_modules_load_config()
+        cfg = update_cfg(cfg, n_future=future_frames, receptive_field=receptive_field)
+        cfg["future_frames"] = future_frames
+        cfg["receptive_field"] = receptive_field
 
         
-    #     with torch.profiler.profile(
-    #         activities=[
-    #             torch.profiler.ProfilerActivity.CPU,
-    #             torch.profiler.ProfilerActivity.CUDA,
-    #         ],
-    #         schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
-    #         on_trace_ready=torch.profiler.tensorboard_trace_handler(
-    #             str(base_path /f"future_frames_{c}"),
-    #             worker_name="worker0",
-    #         ),
-    #         record_shapes=False,
-    #         profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
-    #         with_stack=False,
-    #         with_flops=True,
-    #         use_cuda=True
-    #     ) as p:
-    #         try:
-    #             perform_10_steps(cfg, p)
-    #             print("Future frames done")
-    #         except Exception as e:
-    #             logger.debug(e)
-    #             print(f"Experiment {c} failed with {e} - receptive field")
-    #         # p.export_chrome_trace(
-    #         #     str(base_path/f"/logs_profiler_chrome/future_frames_{c}.txt"))
+        with torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                str(base_path /f"future_frames_{c}"),
+                worker_name="worker0",
+            ),
+            record_shapes=False,
+            profile_memory=False,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            with_stack=False,
+            with_flops=True,
+            use_cuda=True
+        ) as p:
+            try:
+                perform_10_steps(cfg, p)
+                
+                print("Future frames {c} done")
+            except Exception as e:
+                logger.debug(e)
+                print(f"Experiment {c} failed with {e} - receptive field")
+            
 
-    #     logger.debug(
-    #         "******" * 6
-    #         + " future_frames "
-    #         + str(future_frames)
-    #         + " receptive_field: "
-    #         + str(receptive_field)
-    #         + "******" * 6
-    #     )
-    # logger.debug("*******" * 12)
-
+        logger.debug(
+            "******" * 6
+            + " future_frames "
+            + str(future_frames)
+            + " receptive_field: "
+            + str(receptive_field)
+            + "******" * 6
+        )
+    logger.debug("*******" * 12)
+    torch.cuda.empty_cache()
     for i, d in enumerate(map_grid_confs["dbound"]):
         det_grid_conf["xbound"] = det_grid_confs["xbound"][i]
         det_grid_conf["ybound"] = det_grid_confs["ybound"][i]
@@ -467,24 +466,22 @@ def main() -> None:
             ],
             schedule=torch.profiler.schedule(wait=2, warmup=3, active=5),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                
                 str(base_path /f"grid_config_{i}"),
                 worker_name="worker0",
             ),
             record_shapes=False,
-            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            profile_memory=False,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
             with_stack=False,
             with_flops=True,
             use_cuda=True
         ) as p:
             try:
                 perform_10_steps(cfg, p)
-                print("Grid done")
+                print(f"Grid {i} done")
             except Exception as e:
                 logger.debug(e)
-                print(f"Experiment {i} failed with {e} - final_dim")
-            # p.export_chrome_trace(
-            #     str(base_path/f"logs_profiler_chrome/grid_config_{i}.txt"))
+                print(f"Experiment {c} failed with {e} - final_dim")
+            
 
 
         logger.debug(
@@ -524,8 +521,8 @@ def main() -> None:
     #         except Exception as e:
     #             logger.debug(e)
     #             print(f"Experiment {c} failed with {e} - final_dim")
-    #         # p.export_chrome_trace(
-    #         #     str(base_path/f"/logs_profiler_chrome/size_logs_{c}"))
+    #         p.export_chrome_trace(
+    #             str(base_path/f"/logs_profiler_chrome/size_logs_{c}"))
 
 
     #     logger.debug(
