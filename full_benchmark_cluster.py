@@ -125,7 +125,7 @@ def update_cfg(
     return cfg
 
 
-def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1):
+def import_modules_load_config(cfg_file="motion_detr_tiny.py", samples_per_gpu=1):
     cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
     print(f"loading {cfg_path}")
@@ -238,7 +238,7 @@ def main() -> None:
     # Define different settings to test
     if Path("/content/drive/MyDrive/").exists():
         base_path = Path(
-            r"/home/kraussn/EMT_BEV/logs_profiler/")
+            r"/home/kraussn/EMT_BEV/logs_profiler_motion_detr/")
     elif Path("/home/niklas/ETM_BEV/BEVerse/logs/").exists():
         base_path = Path(r"/home/niklas/ETM_BEV/BEVerse/logs/benchmark/")
     else:
@@ -255,10 +255,10 @@ def main() -> None:
     final_dims = [(224, 480), (256, 704), (512, 1408), (900, 1600)]
 
     backbones = [
-        "beverse_tiny_org.py",
-        "beverse_tiny_org.py",
-        "beverse_tiny_org.py",  # "beverse_small.py",
-        "beverse_tiny_org.py",  # "beverse_small.py",
+        "motion_detr_tiny.py",
+        "motion_detr_tiny.py",
+        "motion_detr_tiny.py",  # "beverse_small.py",
+        "motion_detr_tiny.py",  # "beverse_small.py",
     ]
 
     # future frames -> tiny settings
@@ -267,7 +267,7 @@ def main() -> None:
         3,
         3,
         3,
-        33,
+        3,
         3,
         3,
         3,
@@ -400,7 +400,7 @@ def main() -> None:
                 worker_name="worker0",
             ),
             record_shapes=False,
-            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            profile_memory=False,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
             with_stack=False,
             with_flops=True,
             use_cuda=True
@@ -412,9 +412,6 @@ def main() -> None:
             except Exception as e:
                 logger.debug(e)
                 print(f"Experiment {c} failed with {e} - receptive field")
-            p.export_chrome_trace(
-                str(base_path/f"/logs_profiler_chrome/future_frames_{c}.txt"))
-
         logger.debug(
             "******" * 6
             + " future_frames "
@@ -473,7 +470,7 @@ def main() -> None:
                 worker_name="worker0",
             ),
             record_shapes=False,
-            profile_memory=True,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
+            profile_memory=False,  # This will take 1 to 2 minutes. Setting it to False could greatly speedup.
             with_stack=False,
             with_flops=True,
             use_cuda=True
@@ -483,10 +480,7 @@ def main() -> None:
                 print(f"Grid {i} done")
             except Exception as e:
                 logger.debug(e)
-                print(f"Experiment {c} failed with {e} - final_dim")
-            p.export_chrome_trace(
-                str(base_path/f"logs_profiler_chrome/grid_config_{i}.txt"))
-
+                print(f"Experiment {i} failed with {e} - final_dim")
 
         logger.debug(
             "******" * 6 + " det_grid_conf " + str(det_grid_conf) + "******" * 6
