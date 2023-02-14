@@ -414,8 +414,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         task_mask = mask = torch.zeros(
             (b, h, w), dtype=torch.bool, device=task_feat.device)
         
-        features, pos = torch.utils.checkpoint.checkpoint(
-            self.backbone, task_feat, task_mask)
+        features, pos = self.backbone(task_feat, task_mask)
         #features, pos = self.backbone(task_feat, task_mask)
         # for f in features:
         #     for n in f:
@@ -459,8 +458,7 @@ class MultiTaskHead_Motion_DETR(BaseModule):
         
         # hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(
         #     srcs, masks, pos, query_embeds)
-        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = torch.utils.checkpoint.checkpoint(
-            self.transformer, srcs, masks, pos, query_embeds)
+        hs, init_reference, inter_references, _, _, seg_memory, seg_mask = self.transformer(srcs, masks, pos, query_embeds)
         # print(
         #     f"Memory allcoated after transformer: {torch.cuda.memory_allocated()/(1<<20):,.0f} MB reserved {torch.cuda.memory_reserved()/(1<<20):,.0f} MB")
         # if hs.isnan().sum() > 0 or hs.sum() == 0.0:

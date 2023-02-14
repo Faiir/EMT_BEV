@@ -74,7 +74,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         B, S, N, C, imH, imW = imgs.shape # 1 3/5 6 3 256 704 s = Receptive Field 
         imgs = imgs.view(B * S * N, C, imH, imW)
         #x = self.img_backbone(imgs)
-        x = torch.utils.checkpoint.checkpoint(self.img_backbone, imgs)
+        x = self.img_backbone(imgs)
         # for f in x:
         #     if torch.any(torch.isinf(f)):
         #         print(f"Found inf / -inf in img_backbone")
@@ -97,6 +97,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
                 x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
             x = x_list
         else:
+            print("not instance")
             _, output_dim, ouput_H, output_W = x.shape
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
 
@@ -111,7 +112,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         # # temporal processing
         # x = self.temporal_model(x, future_egomotion=future_egomotion,
         #                         aug_transform=aug_transform, img_is_valid=img_is_valid)
-        x = torch.utils.checkpoint.checkpoint(self.temporal_model, x, future_egomotion,
+        x = self.temporal_model(x, future_egomotion,
                                               aug_transform, img_is_valid)  # torch.Size([1, 64, 128, 128])
 
         torch.cuda.synchronize()
@@ -249,7 +250,8 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         input_height = 256
 
         if input_height == 256:
-            dummy_inputs = torch.load("dummy_input.pt")
+            dummy_inputs = torch.load(
+                "/home/niklas/ETM_BEV/BEVerse/dummy_input.pt")
         else:
             dummy_inputs = torch.load("dummy_input_512.pt")
 
@@ -403,22 +405,13 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x, targets=motion_targets)
 
-        predictions = self.pts_bbox_head.inference(
-            outs,
-            img_metas,
-            rescale=rescale,
-        )
-
-        # convert bbox predictions
-        if "bbox_list" in predictions:
-
-            bbox_list = predictions.pop("bbox_list")
-            bbox_results = [
-                bbox3d2result(bboxes, scores, labels)
-                for bboxes, scores, labels in bbox_list
-            ]
-            predictions["bbox_results"] = bbox_results
-
+        # losses = self.pts_bbox_head.loss(
+        #     predictions=outs, targets=motion_targets)
+        
+        
+        losses =None
+        predictions = losses
+        
         return predictions
 
     def aug_test(

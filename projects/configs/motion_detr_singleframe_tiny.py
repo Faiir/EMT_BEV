@@ -95,10 +95,10 @@ future_discount = 1.0
 hidden_dim = 256
 num_queries = 150
 num_feature_levels = 3
-enc_layers = 5
-dec_layers = 5
-return_intermediate_dec = True
-block_future_prediction = True
+enc_layers = 6
+dec_layers = 6
+return_intermediate_dec = False
+block_future_prediction = False
 
 
 

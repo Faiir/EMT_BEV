@@ -176,8 +176,7 @@ class Motion_DETR_MOT(BaseModule):
         for c,proj_conv in enumerate(self.project_convs):
             input_projections.append(proj_conv(pyramid_bev_feats[c][0]))
 
-        outputs_masks = torch.utils.checkpoint.checkpoint(
-            self.mask_head, seg_memory, input_projections, hs)
+        outputs_masks = self.mask_head(seg_memory, input_projections, hs)
         # torch.Size([1, 1, 300, 5, 50, 50])
 
         # outputs_masks = self.mask_head(
@@ -189,8 +188,7 @@ class Motion_DETR_MOT(BaseModule):
 
         # # torch.Size([6, 5, 1, 300, 101])
         # outputs_class = torch.stack(outputs_class, dim=1)
-        outputs_class = torch.utils.checkpoint.checkpoint(
-            self.class_mlp, hs)  # torch.Size([1, 1, 300, 101])
+        outputs_class = self.class_mlp(hs)  # torch.Size([1, 1, 300, 101])
         #outputs_class = self.class_mlp(hs)
 
         out = {'pred_logits': outputs_class[-1]} # TxBxQxC
