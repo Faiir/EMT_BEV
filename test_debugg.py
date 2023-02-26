@@ -192,8 +192,12 @@ cfg.checkpoint_config.meta = dict(
 # weights_tiny = torch.load( #
 #     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
 # model.load_state_dict(weights_tiny)
+# checkpoint_path = os.path.join(
+#     "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/segmentation_large_n2.pth")
 checkpoint_path = os.path.join(
-    "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/segmentation_large_n2.pth")
+    "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/epoch_10_correct_future_seg.pth")
+
+
 checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
 
 if 'CLASSES' in checkpoint.get('meta', {}):
@@ -296,8 +300,7 @@ for i, data in enumerate(data_loader):
         
         for _ in range(data_loader.batch_size):
             prog_bar.update()
-        if i > 5:
-            break 
+
 print("\n")
 for loss_name, loss_value in final_losses.items():
-    print(f"Test-{loss_name}: {sum(loss_value)/len(dataset)}")
+    print(f"Test-{loss_name}: {sum(loss_value)/len(loss_value)}")

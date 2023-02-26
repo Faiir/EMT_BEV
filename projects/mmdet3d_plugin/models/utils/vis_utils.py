@@ -1,4 +1,6 @@
 
+import datetime
+import time
 import numpy as np
 import torch 
 import matplotlib.pyplot as plt 
@@ -139,7 +141,6 @@ pred_mask_img = True
 pred_mask_matcher_img = True
 gt_mask_img = True 
 
-
 @torch.no_grad()
 def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save_name, save_path=r"/home/niklas/ETM_BEV/BEVerse/viz"):
     
@@ -147,6 +148,12 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
     _idx = num_classes + 1
     #batch_size = pred_mask.shape[0]
     num_frame = pred_mask.shape[1]
+    
+
+    current_time = datetime.datetime.now()
+
+    current_GMT = current_time.timestamp()
+
     
     ####### Print Masks Selected by Class 
     # predmask torch.Size([300, 5, 200, 200])
@@ -165,7 +172,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
                 temporal_instances[t], z_indices)
 
         temporal_instances = temporal_instances.transpose(1,0) # Detection dimension fist again 
-        temporal_instances = (temporal_instances > 0.05).float() #
+        temporal_instances = (temporal_instances > 0.1).float() #
         
         for c,i in enumerate(labels):
             temporal_instances[c] = temporal_instances[c] * i
@@ -201,7 +208,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
 
         plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_prediction_batch_{0}_maxval.png')
+            f'{save_path}/{save_name}_prediction_batch_{0}_maxval_{current_GMT}.png')
         plt.close()
 
     ####### Print Masks Selected by IDX of Matcher
@@ -253,7 +260,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         # put those patched as legend-handles into the legend
         #plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_prediction_matcher_batch_{0}_maxval.png')
+            f'{save_path}/{save_name}_prediction_matcher_batch_{0}_maxval_{current_GMT}.png')
 
         plt.close()
 
@@ -287,7 +294,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
 
         #plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_gt_batch_{0}.png')
+            f'{save_path}/{save_name}_gt_batch_{0}_{current_GMT}.png')
         plt.close()
 
     print(f"saved img to: {save_path}/{save_name}")

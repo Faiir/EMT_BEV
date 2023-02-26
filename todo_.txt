@@ -1,5 +1,0 @@
-DETR FOR SMALL objects  
-
-
-Quadrant? 
-    Shared maskhed?? 

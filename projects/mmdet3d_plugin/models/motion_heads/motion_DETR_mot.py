@@ -464,7 +464,7 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
-        self.plot_prediction= False 
+        self.plot_prediction= True 
 
     def loss_labels(self, outputs, targets, indices, num_masks, log=True):
         """Classification loss (NLL)

@@ -3,7 +3,7 @@ _base_ = ["./motion_detr_singleframe_tiny.py"]
 receptive_field = 3
 future_frames = 4
 future_discount = 0.95
-num_classes = 2#100 # 1 
+num_classes = 1 # 1 
 do_sem_seg = True
 
 work_dir = "/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"

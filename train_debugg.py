@@ -11,7 +11,7 @@ from mmdet.datasets import (build_dataloader, build_dataset,
 from mmcv.parallel import MMDataParallel
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
-from mmcv.runner import wrap_fp16_model
+from mmcv.runner import wrap_fp16_model, load_checkpoint
 from mmcv import Config
 from timeit import default_timer as timer
 import torch.utils.benchmark as benchmark
@@ -251,17 +251,17 @@ data_loaders = [build_dataloader(
 
 model = build_model(cfg.model, train_cfg=cfg.get(
     "train_cfg"), test_cfg=cfg.get('test_cfg'))
-model.init_weights()
+#model.init_weights()
 
-param_size = 0
-for param in model.parameters():
-    param_size += param.nelement() * param.element_size()
-buffer_size = 0
-for buffer in model.buffers():
-    buffer_size += buffer.nelement() * buffer.element_size()
+# param_size = 0
+# for param in model.parameters():
+#     param_size += param.nelement() * param.element_size()
+# buffer_size = 0
+# for buffer in model.buffers():
+#     buffer_size += buffer.nelement() * buffer.element_size()
 
-size_all_mb = (param_size + buffer_size) / 1024**2
-print('model size: {:.3f}MB'.format(size_all_mb))
+# size_all_mb = (param_size + buffer_size) / 1024**2
+# print('model size: {:.3f}MB'.format(size_all_mb))
 
 
 
@@ -275,8 +275,15 @@ cfg.checkpoint_config.meta = dict(
     PALETTE=dataset.PALETTE  # for segmentors
     if hasattr(dataset, 'PALETTE') else None)
 
+# checkpoint_path = os.path.join(
+#     "")
 
-load_model = True  
+
+# checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+
+
+
+load_model = False  
 if load_model:
     # "temporal_model", "pts_bbox_head.task_decoders.motion", "pts_bbox_head.taskfeat_encoders.motion"]
     relevant_weights = ["img_backbone",
@@ -308,6 +315,13 @@ if load_model:
             v.requires_grad = False
         else:
             print(f"Grad enabled for {k}")
+
+checkpoint_path = os.path.join(
+    "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/epoch_10_correct_future_seg.pth")
+
+
+checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+
 
 # weights_tiny = torch.load( # 
 #     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
@@ -376,6 +390,5 @@ runner = build_runner(
 runner.register_training_hooks(cfg.lr_config, optimizer_config,
                                cfg.checkpoint_config, cfg.log_config,
                                cfg.get('momentum_config', None))
-
 
 runner.run(data_loaders, cfg.workflow)

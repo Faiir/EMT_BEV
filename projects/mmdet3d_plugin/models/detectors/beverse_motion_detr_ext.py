@@ -97,7 +97,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
                 x_list.append(x_tmp.view(B, N, output_dim, ouput_H, output_W))
             x = x_list
         else:
-            print("not instance")
+            
             _, output_dim, ouput_H, output_W = x.shape
             x = x.view(B, S, N, output_dim, ouput_H, output_W)
 
@@ -405,14 +405,10 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x, targets=motion_targets)
 
-        # losses = self.pts_bbox_head.loss(
-        #     predictions=outs, targets=motion_targets)
+        losses = self.pts_bbox_head.loss(
+            predictions=outs, targets=motion_targets)
         
-        
-        losses =None
-        predictions = losses
-        
-        return predictions
+        return losses
 
     def aug_test(
         self,
