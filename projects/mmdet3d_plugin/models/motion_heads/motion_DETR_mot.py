@@ -41,6 +41,7 @@ class Motion_DETR_MOT(BaseModule):
                 ignore_index=255,
                 num_queries=300,
                 num_feature_levels=4,
+                attn_threshold=0.1,
                  mask_stride=2,
                  match_stride=2,
                 #posterior_with_label=False, TODO
@@ -75,6 +76,7 @@ class Motion_DETR_MOT(BaseModule):
         self.receptive_field = receptive_field
         self.n_future = n_future +1
         self.block_future_prediction = block_future_prediction
+        self._attn_threshold = 0.65#attn_threshold
         if block_future_prediction:
             
             assert self.n_future == dec_layers
@@ -210,6 +212,7 @@ class Motion_DETR_MOT(BaseModule):
         #segmentation_labels = batch["motion_segmentation"][0]
         gt_instance = batch["motion_instance"]
         future_egomotion = batch["future_egomotion"]
+        segmentation_labels = batch["motion_segmentation"]
         batch_size = len(gt_instance)
         labels = {}
 
@@ -230,6 +233,18 @@ class Motion_DETR_MOT(BaseModule):
             .long()
             .contiguous()[:, :, 0]
         )
+        segmentation_labels = (
+            self.warper.cumulative_warp_features_reverse(
+                segmentation_labels.float().unsqueeze(2),
+                future_egomotion[:, (self.receptive_field - 1) :],
+                mode="nearest",
+                bev_transform=bev_transform,
+            )
+            .long()
+            .contiguous()
+        )
+        #print(f"Seg labels shape: {segmentation_labels.shape =}")
+        
         # better solution by abdur but unsure how to make it work with the rest of the code specifcally maxID since it can be diffferent for batches
         # temp = torch.arange(MaxID).unsqueeze(0).repeat(B, 1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
         # gt_masks_ifc_dim  = (temp== Target.unsqueeze(1)).float()
@@ -266,6 +281,7 @@ class Motion_DETR_MOT(BaseModule):
                     gt_list.append(test_bool)
 
                     #     continue
+            real_ids = ids 
             if self.do_sem_seg:
                 ids = torch.ones_like(ids, device=ids.device)
             #! TODO -> how to deal with the 0 dimension 
@@ -280,16 +296,34 @@ class Motion_DETR_MOT(BaseModule):
             gt_masks_for_loss = F.interpolate(segmentation_labels, size=(
                 l_h, l_w), mode="bilinear", align_corners=False)
             gt_masks_for_match = F.interpolate(segmentation_labels, size=(
-                m_h, m_w), mode="bilinear", align_corners=False)
+                200, 200), mode="bilinear", align_corners=False)
 
             # labels only continous for clip - this is much more of an tracking id as every class is a vehicle anyways # TODO make work with other types of superclasses other then vehicle
             #ids = gt_instance[b].unique()
             # print(
             #     f"Labels over {len(gt_instance[b])} for Batch {b+1}, no.labels {label_t_list} no.masks {gt_masks_for_match.shape}")
-            target_list.append({"labels": ids, "masks": gt_masks_for_loss,
-                               "match_masks": gt_masks_for_match, "gt_motion_instance": gt_instance[b]})
+            target_list.append({"labels": ids, "masks": gt_masks_for_loss, "match_masks": gt_masks_for_match, "gt_motion_instance": gt_instance[b], "gt_labsl": real_ids, "segmentation": segmentation_labels[b]})
         return target_list, future_egomotion[:, (self.receptive_field - 1):]
 
+
+    @torch.no_grad()
+    def _linidx_take(self, val_arr, z_indices):
+
+        # Get number of columns and rows in values array
+        _, nC, nR = val_arr.shape
+
+        # Get linear indices and thus extract elements with np.take
+        idx = nC*nR*z_indices + nR * \
+            torch.arange(nR, device=val_arr.device)[
+                :, None] + torch.arange(nC, device=val_arr.device)
+        val_arr_ravel_shape = val_arr.ravel().shape
+        bool_array = torch.zeros(
+            val_arr_ravel_shape, dtype=bool, device=val_arr.device)
+        bool_array[idx.ravel()] = True
+        bool_array = bool_array.reshape(val_arr.shape).float()
+        res = val_arr * bool_array
+        # torch.take(val_arr, idx)  # Or val_arr.ravel()[idx]
+        return res 
 
     @force_fp32(apply_to=("predictions"))
     def loss(self, predictions, targets=None):
@@ -307,51 +341,39 @@ class Motion_DETR_MOT(BaseModule):
 
     def inference(self, predictions): #TODO
         # [b, s, num_cls, h, w]
-        results = []
+        results = {
+            "mask_predictions": [],
+            "mask_pred_reduced": []
+        }
+ 
         for b in range(predictions["pred_logits"].shape[0]):
             mask_cls = predictions["pred_logits"][b]  # torch.Size([1, 101, 101])
             # torch.Size([1, 300, 5, 50, 50])
             mask_pred = predictions["pred_masks"][b]
+            mask_pred = F.interpolate(mask_pred, size=(200, 200), mode="bilinear", align_corners=False).sigmoid() # torch.Size([12, 5, 200, 200]) -> 12 5 
 
             # For each mask we assign the best class or the second best if the best on is `no_object`.
             _idx = self.num_classes + 1
-            mask_cls = F.softmax(mask_cls, dim=-1)[:, :, :_idx]
+            mask_cls = F.softmax(mask_cls, dim=-1)[:, :_idx]
             # torch.Size([1, 101]) # torch.Size([1, 101])
             scores, labels = mask_cls.max(-1)
+            valid = (labels < _idx)
+            labels = labels [valid]            
+            
+            mask_pred = mask_pred[valid].transpose(1,0)
+            for t in range(mask_pred.shape[0]): # T x V x H x W # Find max per pixel
+                z_indices = torch.argmax(mask_pred[t], dim=0)
+                mask_pred[t] = self._linidx_take(
+                    mask_pred[t], z_indices)
 
-            for i ,(scores_per_clip, labels_per_clip ,mask_per_clip) in enumerate(zip(scores,labels,mask_pred)):
-                result_dict = {}
-                valid = (labels < self.num_classes)  # torch.Size([1, 101])
-                scores_per_clip = scores_per_clip[valid]  # torch.Size([1, 101])
-                labels_per_clip = labels_per_clip[valid]  # torch.Size([1, 101])
-                #mask_cls = mask_cls[valid] # torch.Size([1, 101, 101])
-                mask_per_clip = mask_per_clip[valid]  # torch.Size([1, 300, 5, 50, 50])
-
-                result_dict["scores"] = scores_per_clip
-                result_dict["pred_classes"] = labels_per_clip
-                result_dict["scores"] = scores_per_clip
-                
-                
-        results = "todp"
-        # results = Instances(image_size)
-        # results.scores = scores
-        # results.pred_classes = labels
-        # results.cls_probs = mask_cls
-        # results.pred_masks = mask_pred
-
+            mask_pred = mask_pred.transpose(1,0) # Detection dimension fist again 
+            mask_pred = (mask_pred > self._attn_threshold).float() #
+            # test
+            mask_pred_reduced = mask_pred.sum(0).unsqueeze(0).unsqueeze(2)# fit format for eval -> only do IoU 
+            results["mask_predictions"].append(mask_pred),
+            results["mask_pred_reduced"].append(mask_pred_reduced),
+            
         return results
-
-        # predictions["segmentation"] = torch.nn.interpolate(predictions["segmentation"][:, None], size=self.training_labels["segmentation"].shape[-2:],
-        #                                                    mode="bilinear", align_corners=False)
-        # seg_prediction = torch.argmax(predictions["segmentation"], dim=2, keepdims=True)
-
-        # #non max suppression
-        # pred_consistent_instance_seg = predict_instance_segmentation_and_trajectories(
-        #     predictions,
-        #     compute_matched_centers=False,
-        # )
-
-        #return seg_prediction, pred_consistent_instance_seg
 
 
 @torch.no_grad()
@@ -538,7 +560,7 @@ class SetCriterion(nn.Module):
     def _vis_prediction(self, outputs, targets, indices):
         idx = self._get_src_permutation_idx(indices)
         # matched maskes from Queryset torch.Size([3, 5, 50, 50]) with IDX
-        src_masks = outputs["pred_masks"][0].transpose(1,0)#[idx]
+        src_masks = outputs["pred_masks"][0].transpose(1,0)#[idx] # torch.Size([5, 150, 50, 50]) ; torch.Size([1, 150, 5, 50, 50])
         src_masks_matcher = outputs["pred_masks"][idx]
         src_logits = outputs['pred_logits']
         #idx = self._get_src_permutation_idx(indices)

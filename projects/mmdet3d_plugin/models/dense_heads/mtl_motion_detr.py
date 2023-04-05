@@ -344,15 +344,15 @@ class MultiTaskHead_Motion_DETR(BaseModule):
 
         if self.task_enable.get("motion", False):
             print("MTL Head Inference motion")
-            seg_prediction, pred_consistent_instance_seg = self.task_decoders[
+            pred_dict = self.task_decoders[
                 "motion"
             ].inference(
                 predictions["motion"],
             )
 
             res["motion_predictions"] = predictions["motion"]
-            res["motion_segmentation"] = seg_prediction
-            res["motion_instance"] = pred_consistent_instance_seg
+            res["mask_predictions"] = pred_dict["mask_predictions"]
+            res["mask_pred_reduced"] =pred_dict["mask_pred_reduced"]
 
         return res
 

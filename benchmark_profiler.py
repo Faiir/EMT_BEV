@@ -31,7 +31,7 @@ def main() -> None:
 
     device = torch.device("cuda:0")
     cfg = Config.fromfile(
-        r"/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny.py"
+        r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs/beverse_tiny.py"
     )
 
     # if args.cfg_options is not None:
@@ -60,7 +60,7 @@ def main() -> None:
             else:
                 # import dir is the dirpath for the config file
                 _module_dir = os.path.dirname(
-                    r"/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny.py"
+                    r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs/beverse_tiny.py"
                 )
                 _module_dir = _module_dir.split("/")
                 _module_path = _module_dir[0]

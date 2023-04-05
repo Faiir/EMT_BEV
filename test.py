@@ -131,7 +131,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -236,10 +236,10 @@ cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 
 train_setup = True  
 if train_setup:
-    cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    cfg.data.train.dataset["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
     dataset = build_dataset(cfg.data.train)
 else:
-    cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+    cfg.data.test["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
     dataset = build_dataset(cfg.data.test)
 data_loaders = [build_dataloader(
     dataset,
@@ -266,7 +266,7 @@ if load_model:
         if hasattr(dataset, 'PALETTE') else None)
 
     weights_tiny = torch.load(
-        "/home/niklas/ETM_BEV/BEVerse/logs_cluster/epoch_5.pth")['state_dict']
+        "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs_cluster/epoch_5.pth")['state_dict']
 
     model.load_state_dict(weights_tiny)
 

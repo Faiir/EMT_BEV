@@ -41,8 +41,8 @@ class IntersectionOverUnion(Metric):
 
     def update(self, prediction: torch.Tensor, target: torch.Tensor):
         tps, fps, _, fns, sups = stat_scores(
-            prediction, target, num_classes=self.n_classes, reduce='macro', mdmc_reduce='global').t()
-
+            prediction, target,task='binary', num_classes=self.n_classes, average='macro', multidim_average='global').t() ## reduce to average mdmc_reduce -> multidim_average
+        # torch.Size([1, 5, 1, 60, 60]) , target  torch.Size([1, 5, 1, 60, 60])
         self.true_positive += tps
         self.false_positive += fps
         self.false_negative += fns
@@ -110,9 +110,9 @@ class PanopticMetric(Metric):
 
         Parameters
         ----------
-            pred_instance: (b, s, h, w)
+            pred_instance: (b, s, h, w) torch.Size([1, 5, 60, 60])
                 Temporally consistent instance segmentation prediction.
-            gt_instance: (b, s, h, w)
+            gt_instance: (b, s, h, w) torch.Size([1, 5, 60, 60])
                 Ground truth instance segmentation.
         """
         batch_size, sequence_length = gt_instance.shape[:2]
@@ -189,14 +189,14 @@ class PanopticMetric(Metric):
 
         # Compute ious between all stuff and things
         # hack for bincounting 2 arrays together
-        x = prediction + n_things_and_void * target
+        x = prediction + n_things_and_void * target # 3600?
         bincount_2d = torch.bincount(
             x.long(), minlength=n_things_and_void ** 2)
         if bincount_2d.shape[0] != n_things_and_void ** 2:
             raise ValueError('Incorrect bincount size.')
-        conf = bincount_2d.reshape((n_things_and_void, n_things_and_void))
+        conf = bincount_2d.reshape((n_things_and_void, n_things_and_void)) #torch.Size([151, 151])
         # Drop void class
-        conf = conf[1:, 1:]
+        conf = conf[1:, 1:]#torch.Size([150, 150])
 
         # Confusion matrix contains intersections between all combinations of classes
         union = conf.sum(0).unsqueeze(0) + conf.sum(1).unsqueeze(1) - conf
@@ -212,7 +212,7 @@ class PanopticMetric(Metric):
                                   ] == target_to_cls[mapping[:, 0]]
         mapping = mapping[is_matching]
         tp_mask = torch.zeros_like(conf, dtype=torch.bool)
-        tp_mask[mapping[:, 0], mapping[:, 1]] = True
+        tp_mask[mapping[:, 0], mapping[:, 1]] = True#150x150
 
         # First ids correspond to "stuff" i.e. semantic seg.
         # Instance ids are offset accordingly
@@ -255,10 +255,10 @@ class PanopticMetric(Metric):
         Returns a combined mask + a mapping from id to segmentation class.
         """
         instance = instance.view(-1)
-        instance_mask = instance > 0
+        instance_mask = instance > 0 # 3600
         instance = instance - 1 + n_classes
 
-        segmentation = segmentation.clone().view(-1)
+        segmentation = segmentation.clone().view(-1) # torch.Size([60, 60])
         segmentation_mask = segmentation < n_classes  # Remove void pixels.
 
         # Build an index from instance id to class id.

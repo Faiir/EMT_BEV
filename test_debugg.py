@@ -29,6 +29,9 @@ import mmcv
 from mmdet3d.utils import collect_env, get_root_logger
 from os import path as osp
 
+
+
+from projects.mmdet3d_plugin.tools import single_gpu_test, single_gpu_test_motion_detr
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet.datasets import (  # build_dataset,
     replace_ImageToTensor)
@@ -75,7 +78,7 @@ def _parse_losses( losses):
     return loss, log_vars
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -134,40 +137,18 @@ def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
     return cfg
 
 
-det_grid_conf = {
-    "xbound": [-50.0, 50.0, 0.5],
-    "ybound": [-50.0, 50.0, 0.5],
-    "zbound": [-10.0, 10.0, 20.0],
-    "dbound": [1.0, 60.0, 1.0],
-}
-
-motion_grid_conf = {
-    "xbound": [-50.0, 50.0, 0.5],
-    "ybound": [-50.0, 50.0, 0.5],
-    "zbound": [-10.0, 10.0, 20.0],
-    "dbound": [1.0, 60.0, 0.50],
-}
-
-map_grid_conf = {
-    "xbound": [-50.0, 50.0, 0.5],
-    "ybound": [-50.0, 50.0, 0.5],
-    "zbound": [-10.0, 10.0, 20.0],
-    "dbound": [1.0, 60.0, 1.0],
-}
-
-point_cloud_range_base = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
-point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
-cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
+cfg_file ="motion_detr_tiny.py"
+cfg = import_modules_load_config(cfg_file=cfg_file)
 
-cfg.data.test["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+cfg.data.test["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.test)
 
 
 # 3 5 time: 0.746, data_time: 0.042
 data_loader = build_dataloader(
     dataset,
-    samples_per_gpu=3,
+    samples_per_gpu=1,
     workers_per_gpu=5,
     dist=False,
     shuffle=False,
@@ -190,26 +171,28 @@ cfg.checkpoint_config.meta = dict(
 
 
 # weights_tiny = torch.load( #
-#     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
+#     "/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/beverse_tiny.pth")["state_dict"]
 # model.load_state_dict(weights_tiny)
 # checkpoint_path = os.path.join(
-#     "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/segmentation_large_n2.pth")
-checkpoint_path = os.path.join(
-    "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/epoch_10_correct_future_seg.pth")
+#     "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs_cluster/segmentation_future_logs/segmentation_large_n2.pth")
 
 
-checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+if cfg_file=="motion_detr_tiny.py":
+    checkpoint_path = os.path.join(
+        r"/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/epoch_10_correct_future_seg.pth")
 
-if 'CLASSES' in checkpoint.get('meta', {}):
-    model.CLASSES = checkpoint['meta']['CLASSES']
-else:
-    model.CLASSES = dataset.CLASSES
-# palette for visualization in segmentation tasks
-if 'PALETTE' in checkpoint.get('meta', {}):
-    model.PALETTE = checkpoint['meta']['PALETTE']
-elif hasattr(dataset, 'PALETTE'):
-    # segmentation dataset has `PALETTE` attribute
-    model.PALETTE = dataset.PALETTE
+    checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+
+    if 'CLASSES' in checkpoint.get('meta', {}):
+        model.CLASSES = checkpoint['meta']['CLASSES']
+    else:
+        model.CLASSES = dataset.CLASSES
+    # palette for visualization in segmentation tasks
+    if 'PALETTE' in checkpoint.get('meta', {}):
+        model.PALETTE = checkpoint['meta']['PALETTE']
+    elif hasattr(dataset, 'PALETTE'):
+        # segmentation dataset has `PALETTE` attribute
+        model.PALETTE = dataset.PALETTE
 
 
 
@@ -217,7 +200,7 @@ model.cuda()
 model = MMDataParallel(model, device_ids=[0])
 
 
-log_path = osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/testspeed")
+log_path = osp.abspath(r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/testspeed")
 mmcv.mkdir_or_exist(log_path)
 
 # init the logger before other steps
@@ -231,7 +214,7 @@ logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = "/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
+cfg.work_dir = "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/exp_logs/"
 meta = dict()
 # log env info
 env_info_dict = collect_env()
@@ -248,59 +231,66 @@ logging_interval = 50
 model.eval()
 dataset = data_loader.dataset
 
-prog_bar = mmcv.ProgressBar(len(dataset))
+# prog_bar = mmcv.ProgressBar(len(dataset))
 
-final_losses = {
-    "loss_overall": [],
-    "loss_ce": [],
-    "loss_mask": [],
-    "liss_dice": [],
-}
+with torch.no_grad():
+    if  cfg_file=="beverse_tiny_org.py":
+        outputs = single_gpu_test(
+            model, data_loader, False, "./")
+    elif cfg_file=="motion_detr_tiny.py":
+        outputs = single_gpu_test_motion_detr(
+            model, data_loader, False, "./")
+# final_losses = {
+#     "loss_overall": [],
+#     "loss_ce": [],
+#     "loss_mask": [],
+#     "liss_dice": [],
+# }
 
-for i, data in enumerate(data_loader):
-    with torch.no_grad():
-        motion_distribution_targets = {
-            # for motion prediction
-            'motion_segmentation': data['motion_segmentation'][0],
-            'motion_instance': data['motion_instance'][0],
-            'instance_centerness': data['instance_centerness'][0],
-            'instance_offset': data['instance_offset'][0],
-            'instance_flow': data['instance_flow'][0],
-            'future_egomotion': data['future_egomotions'][0],
-        }
-        losses = model(
-            return_loss=False,
-            rescale=True,
-            img_metas=data['img_metas'],
-            img_inputs=data['img_inputs'],
-            future_egomotions=data['future_egomotions'],
-            motion_targets=motion_distribution_targets,
-            img_is_valid=data['img_is_valid'][0],
-        )
+# for i, data in enumerate(data_loader):
+#     with torch.no_grad():
+#         motion_distribution_targets = {
+#             # for motion prediction
+#             'motion_segmentation': data['motion_segmentation'][0],
+#             'motion_instance': data['motion_instance'][0],
+#             'instance_centerness': data['instance_centerness'][0],
+#             'instance_offset': data['instance_offset'][0],
+#             'instance_flow': data['instance_flow'][0],
+#             'future_egomotion': data['future_egomotions'][0],
+#         }
+#         losses = model(
+#             return_loss=False,
+#             rescale=True,
+#             img_metas=data['img_metas'],
+#             img_inputs=data['img_inputs'],
+#             future_egomotions=data['future_egomotions'],
+#             motion_targets=motion_distribution_targets,
+#             img_is_valid=data['img_is_valid'][0],
+#         )
         
-        log_vars = OrderedDict()
-        for loss_name, loss_value in losses.items():
-            if isinstance(loss_value, torch.Tensor):
-                log_vars[loss_name] = loss_value.mean()
-            elif isinstance(loss_value, list):
-                log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
-            else:
-                raise TypeError(
-                    f'{loss_name} is not a tensor or list of tensors')
+#         log_vars = OrderedDict()
+#         for loss_name, loss_value in losses.items():
+#             if isinstance(loss_value, torch.Tensor):
+#                 log_vars[loss_name] = loss_value.mean()
+#             elif isinstance(loss_value, list):
+#                 log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
+#             else:
+#                 raise TypeError(
+#                     f'{loss_name} is not a tensor or list of tensors')
 
-        loss = sum(_value for _key, _value in log_vars.items()
-                   if 'loss' in _key)
+#         loss = sum(_value for _key, _value in log_vars.items()
+#                    if 'loss' in _key)
 
-        final_losses["loss_overall"].append(loss)
+#         final_losses["loss_overall"].append(loss)
         
-        final_losses["loss_ce"].append(log_vars["loss_ce"])
-        final_losses["loss_mask"].append(log_vars["loss_mask"])
-        final_losses["liss_dice"].append(log_vars["loss_dice"])
+#         final_losses["loss_ce"].append(log_vars["loss_ce"])
+#         final_losses["loss_mask"].append(log_vars["loss_mask"])
+#         final_losses["liss_dice"].append(log_vars["loss_dice"])
         
         
-        for _ in range(data_loader.batch_size):
-            prog_bar.update()
+#         for _ in range(data_loader.batch_size):
+#             prog_bar.update()
 
-print("\n")
-for loss_name, loss_value in final_losses.items():
-    print(f"Test-{loss_name}: {sum(loss_value)/len(loss_value)}")
+# print("\n")
+# for loss_name, loss_value in final_losses.items():
+#     print(f"Test-{loss_name}: {sum(loss_value)/len(loss_value)}")

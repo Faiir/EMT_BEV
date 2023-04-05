@@ -7,7 +7,7 @@ __pycache__/
 # C extensions
 *.so
 
-
+*.so
 
 # Distribution / packaging
 .Python
@@ -171,3 +171,16 @@ weights/beverse_tiny.pth
 weights/beverse_small.pth
 *.Identifier
 *.pth
+mmdet3d/ops/ball_query/*.so
+mmdet3d/ops/ball_query/ball_query_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/bev_pool/bev_pool_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/furthest_point_sample/furthest_point_sample_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/gather_points/gather_points_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/group_points/group_points_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/interpolate/interpolate_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/iou3d/iou3d_cuda.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/knn/knn_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/paconv/assign_score_withk_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/roiaware_pool3d/roiaware_pool3d_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/spconv/sparse_conv_ext.cpython-38-x86_64-linux-gnu.so
+mmdet3d/ops/voxel/voxel_layer.cpython-38-x86_64-linux-gnu.so

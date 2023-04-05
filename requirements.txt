@@ -12,7 +12,8 @@ tensorboard
 trimesh==2.35.39
 torchmetrics
 fvcore
-torch_tb_profiler
-accelerate
-torchsummary
+einops
+# torch_tb_profiler
+# accelerate
+# torchsummary
 # https://mmcv.readthedocs.io/en/latest/get_started/installation.html#install-mmcv-full

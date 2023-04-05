@@ -110,7 +110,7 @@ model = dict(
 
 dataset_type = 'CustomNuScenesDataset'
 # "data/nuscenes/"  # '/data/Dataset/nuScenes/'
-data_root = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes/"
+data_root = "/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/"
 
 file_client_args = dict(backend='disk')
 

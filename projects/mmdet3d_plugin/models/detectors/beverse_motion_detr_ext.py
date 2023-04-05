@@ -251,7 +251,7 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
 
         if input_height == 256:
             dummy_inputs = torch.load(
-                "/home/niklas/ETM_BEV/BEVerse/dummy_input.pt")
+                "/home/niklas/future_instance_prediction_bev/EMT_BEV/dummy_input.pt")
         else:
             dummy_inputs = torch.load("dummy_input_512.pt")
 
@@ -405,10 +405,11 @@ class BEVerse_Motion_DETR(MVXTwoStageDetector):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x, targets=motion_targets)
 
-        losses = self.pts_bbox_head.loss(
-            predictions=outs, targets=motion_targets)
+        predictions = self.pts_bbox_head.inference(
+            outs, img_metas, rescale=rescale,
+        )
         
-        return losses
+        return predictions
 
     def aug_test(
         self,

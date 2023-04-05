@@ -292,8 +292,8 @@ model = dict(
 
 
 dataset_type = "MTLEgoNuScenesDataset"
-data_root = "/home/kraussn/EMT_BEV/data/nuscenes/"
-data_info_path = "/home/kraussn/EMT_BEV/data/nuscenes_infos/"
+data_root = "/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/"
+data_info_path = "/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes_infos/"
 
 train_pipeline = [
     # load image and apply image-view augmentation

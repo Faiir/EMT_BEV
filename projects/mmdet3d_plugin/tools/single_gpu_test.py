@@ -67,9 +67,9 @@ def single_gpu_test(model,
 
     # whether each task is enabled
     task_enable = model.module.pts_bbox_head.task_enable
-    det_enable = task_enable.get('3dod', False)
-    map_enable = task_enable.get('map', False)
-    motion_enable = task_enable.get('motion', False)
+    det_enable = False#task_enable.get('3dod', False)
+    map_enable = False#task_enable.get('map', False)
+    motion_enable = True#task_enable.get('motion', False)
     det_results = []
 
     # define metrics
@@ -163,10 +163,10 @@ def single_gpu_test(model,
                     for key, grid in EVALUATION_RANGES.items():
                         limits = slice(grid[0], grid[1])
                         motion_panoptic_metrics[key](motion_instance[..., limits, limits].contiguous(
-                        ), motion_labels['instance'][..., limits, limits].contiguous().cuda())
+                        ), motion_labels['instance'][..., limits, limits].contiguous().cuda()) # torch.Size([1, 5, 60, 60])
 
-                        motion_iou_metrics[key](motion_segmentation[..., limits, limits].contiguous(
-                        ), motion_labels['segmentation'][..., limits, limits].contiguous().cuda())
+                        motion_iou_metrics[key](motion_segmentation[..., limits, limits].contiguous( 
+                        ), motion_labels['segmentation'][..., limits, limits].contiguous().cuda()) # torch.Size([1, 5, 1, 60, 60])
                 else:
                     motion_labels = None
 

@@ -19,7 +19,7 @@ from mmdet.apis import multi_gpu_test, set_random_seed
 from mmdet.datasets import replace_ImageToTensor
 
 
-cfg = Config.fromfile(r"/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny.py")
+cfg = Config.fromfile(r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs/beverse_tiny.py")
 # if args.cfg_options is not None:
 #     cfg.merge_from_dict(args.cfg_options)
 # import modules from string list.
@@ -46,7 +46,7 @@ if hasattr(cfg, "plugin"):
         else:
             # import dir is the dirpath for the config file
             _module_dir = os.path.dirname(
-                r"/home/niklas/ETM_BEV/BEVerse/projects/configs/beverse_tiny.py"
+                r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs/beverse_tiny.py"
             )
             _module_dir = _module_dir.split("/")
             _module_path = _module_dir[0]

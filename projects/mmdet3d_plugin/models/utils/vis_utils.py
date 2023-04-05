@@ -1,5 +1,6 @@
 
 import datetime
+import sys
 import time
 import numpy as np
 import torch 
@@ -89,7 +90,7 @@ def generate_instance_colours(instance_map):
             instance_id, global_instance_id in instance_map.items()
             }
 
-
+@torch.no_grad()
 def linidx_take(val_arr, z_indices):
 
     # Get number of columns and rows in values array
@@ -138,22 +139,57 @@ def plot_instance_map(instance_image, instance_map, max_instance_num=None, insta
     return plot_image, instance_colours
 
 pred_mask_img = True
-pred_mask_matcher_img = True
+pred_mask_matcher_img = False
 gt_mask_img = True 
 
 @torch.no_grad()
-def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save_name, save_path=r"/home/niklas/ETM_BEV/BEVerse/viz"):
+def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save_name, save_path=r"/home/niklas/future_instance_prediction_bev/EMT_BEV/viz"):
     
     num_classes = 100
     _idx = num_classes + 1
     #batch_size = pred_mask.shape[0]
     num_frame = pred_mask.shape[1]
     
+    gt_instance = gt_mask[0].detach().cpu().numpy()
+    gt_labels = np.unique(gt_instance)[1:]
+    gt_labels = gt_labels[gt_labels != 255]
 
     current_time = datetime.datetime.now()
 
     current_GMT = current_time.timestamp()
+    
+    
+    if gt_mask_img:
+        gt_instance = gt_mask[0].detach().cpu().numpy()
+        gt_labels = np.unique(gt_instance)[1:]
+        gt_labels = gt_labels[gt_labels != 255]
+        print(gt_labels)
+        instance_map = dict(zip(gt_labels, gt_labels))
+        instance_colours_dict = {}
+        plt.figure(0, figsize=(20, 8))
+        plt.title("Prediction Mask")
+        for i in range(num_frame):
+            color_instance_i, instance_colours = plot_instance_map(
+                gt_instance[i], instance_map)
+            instance_colours_dict.update(instance_colours)
+            plt.subplot(1, num_frame, i + 1)
+            plt.imshow(color_instance_i)
+            plt.axis('off')
+            #plt.show()
+        values = gt_labels
+        colors = [instance_colours_dict[k] for k in instance_colours_dict]
+        color_name = "Instance_Colors"
 
+        # create a patch (proxy artist) for every color
+        patches = [mpatches.Patch(color=colors[i]/255, label="Instance {l}".format(
+            l=values[i])) for i in range(len(values))]
+        # put those patched as legend-handles into the legend
+        plt.legend(handles=patches)
+
+        #plt.grid(True)
+        plt.savefig(
+            f'{save_path}/attn_test2/{save_name}_gt_{current_GMT}.png')
+        plt.close()
     
     ####### Print Masks Selected by Class 
     # predmask torch.Size([300, 5, 200, 200])
@@ -163,27 +199,71 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         mask_cls = F.softmax(pred_labels[0], dim=-1)[:, :_idx]
         _, labels = mask_cls.max(-1)  # 100 100
         valid = (labels < num_classes)
-        labels = labels [valid]
-        temporal_instances = temporal_instances[valid].transpose(1,0) # time dimension first
+        print(f"number of valid dims: {valid.sum().item()}")
+        labels = labels[valid]
         
+        temporal_instances = temporal_instances[valid].transpose(1,0) # time dimension first
+        temporal_instances2 = temporal_instances.clone()
         for t in range(num_frame): # T x V x H x W # Find max per pixel
             z_indices = torch.argmax(temporal_instances[t], dim=0)
             temporal_instances[t] = linidx_take(
                 temporal_instances[t], z_indices)
 
-        temporal_instances = temporal_instances.transpose(1,0) # Detection dimension fist again 
-        temporal_instances = (temporal_instances > 0.1).float() #
+        #mask=(temporal_instances2 == temporal_instances2.max(dim=1, keepdim=True)[0]).to(dtype=torch.int32)
+        # mask=torch.isclose(temporal_instances2, temporal_instances2.max(dim=1, keepdim=True)[0], atol=1e-6).to(dtype=torch.int32)
+        # temporal_instances2=torch.mul(mask,temporal_instances2)
         
-        for c,i in enumerate(labels):
-            temporal_instances[c] = temporal_instances[c] * i
+        # _isequal=torch.equal(temporal_instances2, temporal_instances)
+
+        temporal_instances = temporal_instances.transpose(1,0) # Detection dimension fist again 
+        temporal_instances = (temporal_instances > 0.05).float() #
+        
+        # for c,i in enumerate(gt_labels):#!
+        #     temporal_instances[c] = temporal_instances[c] * i
+        #     print(f"unique values in dim: {c}: {temporal_instances[c].unique()}")
         # torch.Size([29, 5, 200, 200])
+        instance_ids = np.unique(labels.detach().cpu().numpy())#[1:]
+        max_instance = np.max(instance_ids)
+        instance_ids = instance_ids[instance_ids != 255]
+
+        instance_map = dict(zip(instance_ids, instance_ids))
+        instance_colours_dict = {}
+        for c,d in enumerate(range(temporal_instances.shape[0])):
+            plt.figure(0, figsize=(20, 8))
+            plt.title("Prediction Mask")
+            for i in range(num_frame):
+                color_instance_i, instance_colours = plot_instance_map(
+                    temporal_instances[c][i], instance_map, max_instance)
+                instance_colours_dict.update(instance_colours)
+                plt.subplot(1, num_frame, i + 1)
+                plt.imshow(color_instance_i)
+                plt.axis('off')
+            # values = instance_ids
+            # colors = [instance_colours_dict[k] for k in instance_colours_dict]
+            # color_name = "Instance_Colors"
+
+            # create a patch (proxy artist) for every color
+            # patches = [mpatches.Patch(color=colors[i]/255, label="Instance {l}".format(
+            #     l=values[i])) for i in range(len(values))]
+            # # put those patched as legend-handles into the legend
+            # plt.legend(handles=patches)
+
+            #plt.grid(True)
+            plt.savefig(
+                f'{save_path}/attn_test2/{save_name}_prediction_dim_{d}_.png')
+            
+            plt.close()
+            print(f"{d}")
+        print("done")
+        sys.exit(0)
+        
         temporal_instances = temporal_instances.sum(0)#.transpose(1, 0)
         temporal_instances = temporal_instances.detach().cpu().numpy()
         
         instance_ids = np.unique(labels.detach().cpu().numpy())#[1:]
         max_instance = np.max(instance_ids)
         instance_ids = instance_ids[instance_ids != 255]
-        print(instance_ids)
+
         instance_map = dict(zip(instance_ids, instance_ids))
         instance_colours_dict = {}
         plt.figure(0, figsize=(20, 8))
@@ -195,7 +275,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
             plt.subplot(1, num_frame, i + 1)
             plt.imshow(color_instance_i)
             plt.axis('off')
-            plt.show()
+            #plt.show()
         values = instance_ids
         colors = [instance_colours_dict[k] for k in instance_colours_dict]
         color_name = "Instance_Colors"
@@ -206,10 +286,52 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         # put those patched as legend-handles into the legend
         plt.legend(handles=patches)
 
-        plt.grid(True)
+        #plt.grid(True)
         plt.savefig(
-            f'{save_path}/{save_name}_prediction_batch_{0}_maxval_{current_GMT}.png')
+            f'{save_path}/{save_name}_prediction_real_{current_GMT}.png')
         plt.close()
+
+
+        # temporal_instances2 = temporal_instances2.transpose(1,0) # Detection dimension fist again 
+        # temporal_instances2 = (temporal_instances2 > 0.1).float() #
+
+        # for c,i in enumerate(labels):
+        #     temporal_instances2[c] = temporal_instances2[c] * i
+        # # torch.Size([29, 5, 200, 200])
+        # temporal_instances2 = temporal_instances2.sum(0)#.transpose(1, 0)
+        # temporal_instances2 = temporal_instances2.detach().cpu().numpy()
+        
+        # instance_ids = np.unique(labels.detach().cpu().numpy())#[1:]
+        # max_instance = np.max(instance_ids)
+        # instance_ids = instance_ids[instance_ids != 255]
+
+        # instance_map = dict(zip(instance_ids, instance_ids))
+        # instance_colours_dict = {}
+        # plt.figure(0, figsize=(20, 8))
+        # plt.title("Prediction Mask")
+        # for i in range(num_frame):
+        #     color_instance_i, instance_colours = plot_instance_map(
+        #         temporal_instances2[i], instance_map, max_instance)
+        #     instance_colours_dict.update(instance_colours)
+        #     plt.subplot(1, num_frame, i + 1)
+        #     plt.imshow(color_instance_i)
+        #     plt.axis('off')
+        #     #plt.show()
+        # values = instance_ids
+        # colors = [instance_colours_dict[k] for k in instance_colours_dict]
+        # color_name = "Instance_Colors"
+
+        # # create a patch (proxy artist) for every color
+        # patches = [mpatches.Patch(color=colors[i]/255, label="Instance {l}".format(
+        #     l=values[i])) for i in range(len(values))]
+        # # put those patched as legend-handles into the legend
+        # plt.legend(handles=patches)
+
+        # #plt.grid(True)
+        # plt.savefig(
+        #     f'{save_path}/{save_name}_prediction_clone_{current_GMT}.png')
+        # plt.close()
+
 
     ####### Print Masks Selected by IDX of Matcher
     if pred_mask_matcher_img:
@@ -265,36 +387,7 @@ def plot_all(pred_mask, pred_mask_matcher, gt_mask, pred_labels, gt_labels, save
         plt.close()
 
     ####### Print Masks Selected by GT MASK
-    if gt_mask_img:
-        temporal_instances = gt_mask[0].detach().cpu().numpy()
-        instance_ids = np.unique(temporal_instances)[1:]
-        instance_ids = instance_ids[instance_ids != 255]
-        print(instance_ids)
-        instance_map = dict(zip(instance_ids, instance_ids))
-        instance_colours_dict = {}
-        plt.figure(0, figsize=(20, 8))
-        plt.title("Prediction Mask")
-        for i in range(num_frame):
-            color_instance_i, instance_colours = plot_instance_map(
-                temporal_instances[i], instance_map)
-            instance_colours_dict.update(instance_colours)
-            plt.subplot(1, num_frame, i + 1)
-            plt.imshow(color_instance_i)
-            plt.axis('off')
-            #plt.show()
-        values = instance_ids
-        colors = [instance_colours_dict[k] for k in instance_colours_dict]
-        color_name = "Instance_Colors"
 
-        # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i]/255, label="Instance {l}".format(
-            l=values[i])) for i in range(len(values))]
-        # put those patched as legend-handles into the legend
-        plt.legend(handles=patches)
-
-        #plt.grid(True)
-        plt.savefig(
-            f'{save_path}/{save_name}_gt_batch_{0}_{current_GMT}.png')
-        plt.close()
 
     print(f"saved img to: {save_path}/{save_name}")
+    sys.exit(0)

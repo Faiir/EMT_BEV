@@ -140,7 +140,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -236,15 +236,15 @@ cfg = import_modules_load_config(cfg_file="motion_detr_tiny.py")
 #     #t_input_shape=(90, 155),
 # )
 
-cfg.data.train.dataset["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes'
+cfg.data.train.dataset["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
 
 
 # 3 5 time: 0.746, data_time: 0.042
 data_loaders = [build_dataloader(
     dataset,
-    samples_per_gpu=3,
-    workers_per_gpu=6,
+    samples_per_gpu=1,
+    workers_per_gpu=2,
     dist=False,
     shuffle=False,)]
 
@@ -291,7 +291,7 @@ if load_model:
 
     model_dict = model.state_dict()
     weights_tiny = torch.load(
-        "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")['state_dict']
+        "/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/beverse_tiny.pth")['state_dict']
 
     search_weights = tuple(weights_tiny.keys())
 
@@ -317,14 +317,14 @@ if load_model:
             print(f"Grad enabled for {k}")
 
 checkpoint_path = os.path.join(
-    "/home/niklas/ETM_BEV/BEVerse/logs_cluster/segmentation_future_logs/epoch_10_correct_future_seg.pth")
+    r"/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/epoch_10_correct_future_seg.pth")
 
 
 checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
 
 
 # weights_tiny = torch.load( # 
-#     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
+#     "/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/beverse_tiny.pth")["state_dict"]
 # model.load_state_dict(weights_tiny)
 
 
@@ -332,7 +332,7 @@ model.cuda()
 model = MMDataParallel(model, device_ids=[0])
 
 
-log_path  = osp.abspath(r"/home/niklas/ETM_BEV/BEVerse/logs/testspeed")
+log_path  = osp.abspath(r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/testspeed")
 mmcv.mkdir_or_exist(log_path)
 
 # init the logger before other steps
@@ -346,7 +346,7 @@ logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = "/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
+cfg.work_dir = "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/exp_logs/"
 meta = dict()
 # log env info
 env_info_dict = collect_env()

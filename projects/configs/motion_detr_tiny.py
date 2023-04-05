@@ -6,14 +6,14 @@ future_discount = 0.95
 num_classes = 1 # 1 
 do_sem_seg = True
 
-work_dir = "/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
+work_dir = "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/exp_logs/"
 
 # checkpoint_config = dict(
-#     work_dir="/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
+#     work_dir="/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/exp_logs/"
 # )
 
 log_config = dict(
-    work_dir="/home/niklas/ETM_BEV/BEVerse/logs/exp_logs/"
+    work_dir="/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/exp_logs/"
 )
 
 model = dict(

@@ -291,8 +291,8 @@ model = dict(
 )
 
 dataset_type = "MTLEgoNuScenesDataset"
-data_root = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes/"
-data_info_path = "/home/niklas/ETM_BEV/BEVerse/data/nuscenes_infos/"
+data_root = "/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/"
+data_info_path = "/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes_infos/"
 
 train_pipeline = [
     # load image and apply image-view augmentation
@@ -505,7 +505,7 @@ data = dict(
         future_frames=future_frames,
         grid_conf=grid_conf,
         map_grid_conf=map_grid_conf,
-        ann_file=data_info_path + "nuscenes_infos_val.pkl",
+        ann_file=data_info_path + "nuscenes_infos_test.pkl",
         modality=input_modality,
     ),
 )

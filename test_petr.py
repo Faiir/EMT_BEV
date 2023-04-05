@@ -20,7 +20,7 @@ logger.debug("test")
 print(sys.path)
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/niklas/ETM_BEV/BEVerse/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -85,9 +85,9 @@ torch.backends.cudnn.benchmark = True
 cfg = import_modules_load_config(
     cfg_file=r"petr/petr_r50dcn_gridmask_p4.py")  # petrv2/petrv2_vovnet_gridmask_p4_800x320.py
 
-cfg.data_root = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes/'
-cfg["data"]["test"]["data_root"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes/'
-cfg["data"]["test"]["ann_file"] = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes/nuscenes_infos_val.pkl'
+cfg.data_root = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/'
+cfg["data"]["test"]["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/'
+cfg["data"]["test"]["ann_file"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/nuscenes_infos_val.pkl'
 
 
 dataset = build_dataset(cfg.data.test)

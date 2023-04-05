@@ -140,7 +140,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -238,7 +238,7 @@ experiment_type = "segmentation"
 #     #t_input_shape=(90, 155),
 # )
 
-cfg.data.train.dataset["data_root"] = '/home/kraussn/EMT_BEV/data/nuscenes'
+cfg.data.train.dataset["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.train)
 
 data_loaders = [build_dataloader(
@@ -284,7 +284,7 @@ if load_model:
 
     model_dict = model.state_dict()
     weights_tiny = torch.load(
-        "/home/kraussn/EMT_BEV/weights/beverse_tiny.pth")['state_dict']
+        "/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/beverse_tiny.pth")['state_dict']
 
     search_weights = tuple(weights_tiny.keys())
 
@@ -320,12 +320,12 @@ model.cuda()
 
 model = MMDataParallel(model, device_ids=[0])
 
-mmcv.mkdir_or_exist(osp.abspath(r"/home/kraussn/EMT_BEV/logs/local_train_debug"))
+mmcv.mkdir_or_exist(osp.abspath(r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/local_train_debug"))
 
 # init the logger before other steps
 timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 log_file = osp.join(
-    r"/home/kraussn/EMT_BEV/logs/local_train_debug", f'{timestamp}.log')
+    r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/local_train_debug", f'{timestamp}.log')
 
 
 logger_name = 'mmdet'
@@ -333,7 +333,7 @@ logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = f"/home/kraussn/EMT_BEV/logs/logs_{experiment_type}"
+cfg.work_dir = f"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/logs_{experiment_type}"
 meta = dict()
 # log env info
 env_info_dict = collect_env()

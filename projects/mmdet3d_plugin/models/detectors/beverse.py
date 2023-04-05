@@ -332,6 +332,7 @@ class BEVerse(MVXTwoStageDetector):
         predictions = self.pts_bbox_head.inference(
             outs, img_metas, rescale=rescale,
         )
+        # Computes mpotion prediction (intermediary) / Segmentation / Instance
 
         # convert bbox predictions
         if 'bbox_list' in predictions:

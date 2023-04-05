@@ -126,7 +126,7 @@ def update_cfg(
 
 
 def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1):
-    cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
     print(f"loading {cfg_path}")
     cfg = Config.fromfile(cfg_path)
@@ -186,7 +186,7 @@ def import_modules_load_config(cfg_file="beverse_tiny_org.py", samples_per_gpu=1
 
 def perform_10_steps(cfg, p):
     samples_per_gpu = 1
-    cfg.data.test["data_root"] = '/home/kraussn/EMT_BEV/data/nuscenes'
+    cfg.data.test["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
         dataset,
@@ -238,9 +238,9 @@ def main() -> None:
     # Define different settings to test
     if Path("/content/drive/MyDrive/").exists():
         base_path = Path(
-            r"/home/kraussn/EMT_BEV/logs_profiler/")
-    elif Path("/home/niklas/ETM_BEV/BEVerse/logs/").exists():
-        base_path = Path(r"/home/niklas/ETM_BEV/BEVerse/logs/benchmark/")
+            r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs_profiler/")
+    elif Path("/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/").exists():
+        base_path = Path(r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/benchmark/")
     else:
         raise NotImplementedError
     # img backbones

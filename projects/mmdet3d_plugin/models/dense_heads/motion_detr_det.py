@@ -268,6 +268,7 @@ class Motion_DETR_DET(BaseModule):
     #maybe lets see 
     def prepare_future_labels(self, batch):
         gt_bboxes_list = batch["gt_bboxes_list"]
+        segmentation_labels = batch["motion_segmentation"]
         future_egomotion = batch["future_egomotion"]
         #gt_labels_list = batch["gt_bboxes_list"]
         bev_transform = batch.get("aug_transform", None)

@@ -76,7 +76,7 @@ def _parse_losses(losses):
 
 
 def import_modules_load_config(cfg_file="beverse_tiny.py", samples_per_gpu=1):
-    cfg_path = r"/home/kraussn/EMT_BEV/projects/configs"
+    cfg_path = r"/home/niklas/future_instance_prediction_bev/EMT_BEV/projects/configs"
     cfg_path = os.path.join(cfg_path, cfg_file)
 
     cfg = Config.fromfile(cfg_path)
@@ -161,7 +161,7 @@ point_cloud_range_extended_fustrum = [-62.0, -62.0, -5.0, 62.0, 62.0, 3.0]
 #beverse_tiny_org motion_detr_tiny
 cfg = import_modules_load_config(cfg_file="motion_detr_tiny_cluster.py")
 
-cfg.data.test["data_root"] = '/home/kraussn/EMT_BEV/data/nuscenes'
+cfg.data.test["data_root"] = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes'
 dataset = build_dataset(cfg.data.test)
 
 
@@ -190,10 +190,10 @@ cfg.checkpoint_config.meta = dict(
 
 
 # weights_tiny = torch.load( #
-#     "/home/niklas/ETM_BEV/BEVerse/weights/beverse_tiny.pth")["state_dict"]
+#     "/home/niklas/future_instance_prediction_bev/EMT_BEV/weights/beverse_tiny.pth")["state_dict"]
 # model.load_state_dict(weights_tiny)
 checkpoint_path = os.path.join(
-    "/home/kraussn/EMT_BEV/logs/logs_segmentation/epoch_10.pth")
+    "/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/logs_segmentation/epoch_10.pth")
 checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
 
 if 'CLASSES' in checkpoint.get('meta', {}):
@@ -213,19 +213,19 @@ model = MMDataParallel(model, device_ids=[0])
 
 
 mmcv.mkdir_or_exist(osp.abspath(
-    r"/home/kraussn/EMT_BEV/logs/local_train_debug"))
+    r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/local_train_debug"))
 
 # init the logger before other steps
 timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 log_file = osp.join(
-    r"/home/kraussn/EMT_BEV/logs/local_train_debug", f'{timestamp}.log')
+    r"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/local_train_debug", f'{timestamp}.log')
 
 logger_name = 'mmdet'
 logger = get_root_logger(
     log_file=log_file, log_level=cfg.log_level, name=logger_name)
 
 
-cfg.work_dir = f"/home/kraussn/EMT_BEV/logs/logs_segmentation"
+cfg.work_dir = f"/home/niklas/future_instance_prediction_bev/EMT_BEV/logs/logs_segmentation"
 meta = dict()
 # log env info
 env_info_dict = collect_env()

@@ -1,0 +1,90 @@
+Notes Eval Metric
+
+Keys:
+    Pan: Iou, TP, FP, FN 
+    IoU: TP, FP , FN , Supp 
+
+
+
+Motion segmentation:
+    torch.Size([1, 5, 1, 200, 200]) -> was ich raus bekomme 
+    BxFx1xHxW 
+Motion Instance
+    torch.Size([1, 5, 200, 200]) --> wenn sum 
+
+
+PanopticMetric 
+    Update 
+        PanMetrics 
+            Combinemasks 
+
+
+    bei eval ranges 
+        true motion labels nehmen und nach dim anpassen 
+
+testing 
+200 200 
+grid = 30x30: iou = 54.381, 
+grid = 100x100: iou = 32.022,
+
+#0.05
+grid = 30x30: iou = 52.730, 
+grid = 100x100: iou = 30.740,
+
+0.11 
+grid = 30x30: iou = 54.583, 
+grid = 100x100: iou = 32.198
+
+0.12
+grid = 30x30: iou = 54.759, 
+grid = 100x100: iou = 32.361,
+
+0.14
+grid = 30x30: iou = 55.084, 
+grid = 100x100: iou = 32.646,
+
+0.16
+grid = 30x30: iou = 55.363, 
+grid = 100x100: iou = 32.902, 
+
+0.18
+grid = 30x30: iou = 55.663, 
+grid = 100x100: iou = 33.140, 
+
+0.20
+grid = 30x30: iou = 55.889, 
+grid = 100x100: iou = 33.345, 
+
+0.25
+grid = 30x30: iou = 56.392, 
+grid = 100x100: iou = 33.797, 
+
+0.3
+grid = 30x30: iou = 56.743, 
+grid = 100x100: iou = 34.158,
+
+
+0.35
+grid = 30x30: iou = 56.999, 
+grid = 100x100: iou = 34.450, 
+
+0.7
+rid = 30x30: iou = 57.898, 
+grid = 100x100: iou = 35.615, 
+
+0.8
+grid = 30x30: iou = 57.644, 
+grid = 100x100: iou = 35.610,
+
+0.75
+grid = 30x30: iou = 57.816, 
+grid = 100x100: iou = 35.628,
+
+60
+rid = 30x30: iou = 57.865, 
+grid = 100x100: iou = 35.423, 
+
+65
+
+grid = 30x30: iou = 57.923, 
+grid = 100x100: iou = 35.538,

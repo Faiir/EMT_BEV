@@ -114,7 +114,7 @@ model = dict(
             pc_range=point_cloud_range))))
 
 dataset_type = 'CustomNuScenesDataset'
-data_root = '/home/niklas/ETM_BEV/BEVerse/data/nuscenes/'  # "data/nuscenes/"
+data_root = '/home/niklas/future_instance_prediction_bev/EMT_BEV/data/nuscenes/'  # "data/nuscenes/"
 
 file_client_args = dict(backend='disk')
 db_sampler = dict()
